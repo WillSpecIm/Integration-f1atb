@@ -11,7 +11,12 @@ from homeassistant.components.sensor import (
     SensorStateClass,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import PERCENTAGE, UnitOfEnergy, UnitOfPower
+from homeassistant.const import (
+    PERCENTAGE,
+    UnitOfEnergy,
+    UnitOfPower,
+    UnitOfTemperature,
+)
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.restore_state import ExtraStoredData, RestoreEntity
@@ -19,7 +24,7 @@ from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN
 from .entity import F1atbActionEntity, F1atbBaseEntity
-from .helpers import async_setup_action_platform
+from .helpers import async_setup_action_platform, temp_channel_indices
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -87,6 +92,14 @@ async def async_setup_entry(
         return [OuvertureSensor(coordinator, index)]
 
     async_setup_action_platform(entry, coordinator, async_add_entities, factory)
+
+    # Capteurs de température des canaux configurés 0..3 (dynamique)
+    def temp_factory(channel: int) -> list:
+        return [TemperatureSensor(coordinator, channel)]
+
+    async_setup_action_platform(
+        entry, coordinator, async_add_entities, temp_factory, keys_fn=temp_channel_indices
+    )
 
 
 class F1atbGlobalSensor(F1atbBaseEntity, SensorEntity):
@@ -174,6 +187,64 @@ class F1atbRoutedTodaySensor(F1atbBaseEntity, SensorEntity, RestoreEntity):
     @property
     def extra_state_attributes(self) -> dict:
         return {"f1atb_kind": "routed_energy_today"}
+
+
+class TemperatureSensor(F1atbBaseEntity, SensorEntity):
+    """Température d'un canal configuré (DS18B20 interne / externe / MQTT).
+
+    Un canal (0..3) est exposé s'il est configuré côté routeur (Source_Temp ≠ « tempNo »).
+    L'entité se retire d'elle-même si le canal disparaît de la config.
+    """
+
+    _attr_device_class = SensorDeviceClass.TEMPERATURE
+    _attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_icon = "mdi:thermometer"
+
+    def __init__(self, coordinator, channel: int) -> None:
+        super().__init__(coordinator)
+        self._channel = channel
+        self._attr_unique_id = f"{coordinator.entry.unique_id}_temperature_{channel}"
+
+    @property
+    def _chan(self) -> dict | None:
+        return (self.coordinator.data or {}).get("temp_channels", {}).get(self._channel)
+
+    @property
+    def name(self) -> str:
+        c = self._chan
+        return (c.get("name") if c else None) or f"Température {self._channel}"
+
+    @property
+    def available(self) -> bool:
+        c = self._chan
+        return super().available and c is not None and c.get("value") is not None
+
+    @property
+    def native_value(self) -> float | None:
+        c = self._chan
+        if not c or c.get("value") is None:
+            return None
+        return round(float(c["value"]), 1)
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        c = self._chan or {}
+        return {
+            "f1atb_kind": "temperature",
+            "temp_channel": self._channel,
+            "source": c.get("source"),
+            "nom": c.get("name"),
+        }
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        self.async_on_remove(self.coordinator.async_add_listener(self._remove_if_gone))
+
+    @callback
+    def _remove_if_gone(self) -> None:
+        if self._channel not in (self.coordinator.data or {}).get("temp_channels", {}):
+            self.hass.async_create_task(self.async_remove(force_remove=True))
 
 
 class OuvertureSensor(F1atbActionEntity, SensorEntity):

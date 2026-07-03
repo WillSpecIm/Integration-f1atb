@@ -49,29 +49,37 @@ def active_action_indices(data: dict | None) -> set[int]:
     return set((data.get("actions") or {}).keys())
 
 
+def temp_channel_indices(data: dict | None) -> set[int]:
+    """Canaux de température configurés (0..3)."""
+    if not data:
+        return set()
+    return set((data.get("temp_channels") or {}).keys())
+
+
 @callback
 def async_setup_action_platform(
     entry: ConfigEntry,
     coordinator: F1atbCoordinator,
     async_add_entities: AddEntitiesCallback,
     factory: Callable[[int], Iterable],
+    keys_fn: Callable[[dict | None], set[int]] = active_action_indices,
 ) -> None:
-    """Crée dynamiquement les entités des actions actives, et ré-ajoute si une action revient active.
+    """Crée dynamiquement des entités par clé (action active ou canal temp), et ré-ajoute au retour.
 
-    `factory(index)` renvoie la liste d'entités à créer pour cette action.
-    Le RETRAIT est géré par chaque entité (voir F1atbActionEntity._remove_if_inactive).
+    `factory(index)` renvoie la liste d'entités à créer. `keys_fn(data)` fournit l'ensemble des
+    clés courantes. Le RETRAIT est géré par chaque entité (self-removal).
     """
     known: set[int] = set()
 
     @callback
     def _sync() -> None:
-        current = active_action_indices(coordinator.data)
+        current = keys_fn(coordinator.data)
         new: list = []
         for idx in current:
             if idx not in known:
                 known.add(idx)
                 new.extend(factory(idx))
-        known.intersection_update(current)  # oublier les inactives pour permettre une ré-activation
+        known.intersection_update(current)  # oublier les disparues pour permettre une ré-apparition
         if new:
             async_add_entities(new)
 

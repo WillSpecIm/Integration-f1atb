@@ -48,6 +48,10 @@ const STYLE = `
 .kpi .v{font-size:22px;font-weight:680;letter-spacing:-.5px;margin-top:5px;line-height:1}
 .kpi .v small{font-size:12px;font-weight:500;color:var(--ink2)}
 .tag{width:8px;height:8px;border-radius:3px;display:inline-block}
+.temps{display:flex;flex-wrap:wrap;gap:8px;padding:0 18px 14px;margin-top:-4px}
+.tchip{display:flex;align-items:center;gap:6px;background:var(--plane);border:1px solid var(--line);border-radius:20px;padding:6px 12px;font-size:12.5px}
+.tchip .tn{color:var(--ink2);font-weight:600}
+.tchip .tv{color:var(--ink);font-weight:700;font-variant-numeric:tabular-nums}
 .act{margin:0 14px 14px;border:1px solid var(--line);border-radius:14px;padding:14px 16px;background:var(--surf)}
 .act .top{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px}
 .act .nm{font-size:15px;font-weight:650}
@@ -66,6 +70,7 @@ const STYLE = `
 .slider input[type=range]{flex:1;accent-color:var(--triac)}
 .slider .val{font-size:14px;font-weight:700;min-width:44px;text-align:right}
 .hint{color:var(--triac);font-weight:700}
+.hint2{color:var(--muted);font-weight:500;font-size:11px}
 .pwr{display:flex;align-items:center;gap:9px}
 .pwr input[type=number],.pmax input[type=number]{border:1px solid var(--line);border-radius:10px;background:var(--plane);color:var(--ink);font-weight:650;font-variant-numeric:tabular-nums}
 .pwr input[type=number]{width:96px;padding:9px 11px;font-size:16px}
@@ -160,6 +165,21 @@ class F1atbCard extends HTMLElement {
         <div class="v">${FMT(v, energy ? 1 : 0)}<small>${unit}</small></div></div>`;
     };
 
+    // Températures (canaux configurés) : puces triées par canal
+    const tempEids = eids
+      .filter((e) => (((this._st(e) || {}).attributes) || {}).f1atb_kind === "temperature")
+      .sort((a, b) => (this._st(a).attributes.temp_channel || 0) - (this._st(b).attributes.temp_channel || 0));
+    let tempHtml = "";
+    if (tempEids.length) {
+      tempHtml = `<div class="temps">` + tempEids.map((e) => {
+        const s = this._st(e);
+        const v = Number(s.state);
+        const nm = s.attributes.nom || ("Canal " + (s.attributes.temp_channel ?? "?"));
+        const disp = (s.state === "unavailable" || s.state === "unknown" || isNaN(v)) ? "—" : FMT(v, 1) + "°C";
+        return `<div class="tchip">🌡<span class="tn">${ESC(nm)}</span><span class="tv">${disp}</span></div>`;
+      }).join("") + `</div>`;
+    }
+
     const actIdx = Object.keys(actions).map(Number).sort((a, b) => a - b);
     let actionsHtml = "";
     if (actIdx.length === 0) {
@@ -180,11 +200,20 @@ class F1atbCard extends HTMLElement {
         ondeHtml = `<div class="row"><div class="lab"><span>Forme d'onde</span></div><div class="seg" data-role="onde" data-eid="${A.forme_onde}">` +
           opts.map((o) => `<button class="${o === fondeS.state ? "on" : ""}" data-opt="${ESC(o)}">${ESC(o)}</button>`).join("") + `</div></div>`;
       }
-      // ouverture max : slider
+      // ouverture max en routage AUTO (triac) : slider
+      let autoHtml = "";
+      const autoS = A.auto_ouverture_max ? this._st(A.auto_ouverture_max) : null;
+      if (autoS) {
+        const av = Number(autoS.state);
+        autoHtml = `<div class="row"><div class="lab"><span>Ouverture max (Auto)</span><span class="hint2">routage normal</span></div>
+          <div class="slider"><input type="range" min="0" max="100" step="1" value="${av}" data-role="om" data-eid="${A.auto_ouverture_max}">
+          <span class="val">${FMT(av)}%</span></div></div>`;
+      }
+      // ouverture appliquée en MARCHE FORCÉE (ForceOuvre) : slider
       let omHtml = "";
       if (omS) {
         const val = Number(omS.state);
-        omHtml = `<div class="row"><div class="lab"><span>Ouverture max</span></div>
+        omHtml = `<div class="row"><div class="lab"><span>Ouverture (marche forcée)</span><span class="hint2">si forcé</span></div>
           <div class="slider"><input type="range" min="0" max="100" step="1" value="${val}" data-role="om" data-eid="${A.ouverture_max}">
           <span class="val">${FMT(val)}%</span></div></div>`;
       }
@@ -224,7 +253,7 @@ class F1atbCard extends HTMLElement {
       actionsHtml += `<div class="act">
         <div class="top"><div class="nm">${ESC(A.name || "Action " + i)}</div><div class="ouv">${ouv == null ? "" : FMT(ouv) + " %"}</div></div>
         <div class="bar"><i style="width:${Math.max(0, Math.min(100, ouv || 0))}%"></i></div>
-        ${ondeHtml}${omHtml}${forcHtml}${mfHtml}
+        ${ondeHtml}${autoHtml}${forcHtml}${omHtml}${mfHtml}
       </div>`;
     }
 
@@ -238,6 +267,7 @@ class F1atbCard extends HTMLElement {
           ${kpi("routed_power", "Routée", "--triac", "W", false)}
           ${kpi("routed_energy_today", "Routé auj.", "--relais", "kWh", true)}
         </div>
+        ${tempHtml}
         ${actionsHtml}
       </div></ha-card>`;
 

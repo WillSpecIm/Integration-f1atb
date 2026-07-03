@@ -41,6 +41,8 @@ interactive** qui suit le thème de votre interface.
   automatiquement ; **calibration auto** de la puissance max de l'appareil en un clic (voir plus bas).
 - **Énergie fiable** — le « routé aujourd'hui » est recalculé depuis le **compteur cumulé à vie**, donc
   **insensible aux redémarrages** du routeur (voir plus bas).
+- **Sondes de température** — les canaux configurés (jusqu'à 4 : DS18B20, externe ou MQTT) sont détectés
+  et exposés automatiquement, avec leur nom.
 - **Capteur de disponibilité** (`Connecté`) pour suivre quand le routeur est en marche.
 - **Carte Lovelace stylée**, chargée automatiquement, **thème clair/sombre** automatique.
 - **Local & rapide** — polling toutes les 5 s (configurable), aucune dépendance externe.
@@ -54,7 +56,8 @@ interactive** qui suit le thème de votre interface.
 | Entité | Type | Réglage | Écriture |
 |---|---|---|---|
 | **Forme d'onde** | `select` | Inactif / Découpe (triac) ou On-Off (relais) / Demi-sinus / Multi-sinus / Train de sinus / PWM | `/ParaNew` — **persistant** |
-| **Ouverture max** | `number` (0–100 %) | ouverture maximale lorsque le routage est forcé (`ForceOuvre`) | `/ParaNew` — **persistant** |
+| **Ouverture max (Auto)** | `number` (0–100 %) | *(triac)* **plafond d'ouverture du routage automatique** (`Vmax`, toutes périodes) | `/ParaNew` — **persistant** |
+| **Ouverture (marche forcée)** | `number` (0–100 %) | ouverture appliquée **quand le routage est forcé en marche** (`ForceOuvre`) | `/ParaNew` — **persistant** |
 | **Forçage** | `select` | Auto / Marche forcée / Arrêt forcé | `/ForceAction` |
 | **Marche forcée (W)** | `number` (W) | puissance à router de force → ouverture calculée + marche forcée ; **0 = Auto** | `/ParaNew` + `/ForceAction` |
 | **Puissance max** | `number` (W) | calibration : puissance à 100 % d'ouverture (côté HA, saisie manuelle possible) | — (stocké dans HA) |
@@ -72,6 +75,7 @@ interactive** qui suit le thème de votre interface.
 | **Puissance routée** | W | puissance envoyée vers la charge |
 | **Énergie routée aujourd'hui** | kWh | journalier **robuste** (cumulé − minuit), remis à zéro à minuit |
 | **Énergie routée totale** | kWh | compteur **à vie** — idéal pour le tableau de bord Énergie |
+| **Température** (× canaux configurés) | °C | une entité par canal (0–3) configuré sur le routeur (DS18B20 / externe / MQTT), avec son nom |
 | **Connecté** | on/off | connectivité du routeur (reste dispo même hors ligne) |
 
 ---

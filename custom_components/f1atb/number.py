@@ -25,17 +25,69 @@ async def async_setup_entry(
     coordinator = hass.data[DOMAIN][entry.entry_id]
 
     def factory(index: int) -> list:
-        return [
+        items = [
             OuvertureMaxNumber(coordinator, index),
             PuissanceMaxNumber(coordinator, index),
             MarcheForceePuissanceNumber(coordinator, index, entry),
         ]
+        if index == 0:  # triac : ouverture max en routage AUTO (Vmax %)
+            items.append(AutoOuvertureMaxNumber(coordinator, index))
+        return items
 
     async_setup_action_platform(entry, coordinator, async_add_entities, factory)
 
 
+class AutoOuvertureMaxNumber(F1atbActionEntity, NumberEntity):
+    """Ouverture MAX en routage AUTO (triac) = Vmax des périodes. Écrit via /ParaNew.
+
+    À distinguer de « Ouverture (marche forcée) » (ForceOuvre) : ici c'est le plafond
+    d'ouverture que l'algorithme normal ne dépassera pas. Appliqué à TOUTES les périodes.
+    """
+
+    _attr_icon = "mdi:arrow-collapse-vertical"
+    _attr_native_min_value = 0
+    _attr_native_max_value = 100
+    _attr_native_step = 1
+    _attr_native_unit_of_measurement = PERCENTAGE
+    _attr_mode = NumberMode.SLIDER
+    _kind = "auto_ouverture_max"
+
+    def __init__(self, coordinator, index: int) -> None:
+        super().__init__(coordinator, index)
+        self._attr_unique_id = f"{coordinator.entry.unique_id}_auto_ouverture_max_{index}"
+
+    @property
+    def name(self) -> str:
+        return f"{self._action_name} ouverture max (Auto)"
+
+    @property
+    def native_value(self) -> float | None:
+        a = self._action
+        return None if a is None else float(a.get("auto_ouvre_max", 100) or 0)
+
+    async def async_set_native_value(self, value: float) -> None:
+        idx = self._index
+        v = int(max(0, min(100, value)))
+
+        def _mutate(config: dict) -> None:
+            actions = config.get("Actions") or []
+            if 0 <= idx < len(actions):
+                periodes = actions[idx].get("Periodes")
+                if periodes is None:
+                    periodes = actions[idx].get("Périodes")
+                for p in (periodes or []):
+                    p["Vmax"] = v  # même plafond sur toutes les périodes
+
+        await self.coordinator.client.async_patch_config(_mutate)
+        await self._write_and_refresh(config_change=True)
+
+
 class OuvertureMaxNumber(F1atbActionEntity, NumberEntity):
-    """Ouverture max si forcée (champ ForceOuvre). Écrit via /ParaNew (persistant)."""
+    """Ouverture appliquée en MARCHE FORCÉE (champ ForceOuvre). Écrit via /ParaNew (persistant).
+
+    À distinguer de « Ouverture max (Auto) » : ici c'est l'ouverture utilisée quand le
+    routage est forcé en marche (pas le plafond du routage automatique).
+    """
 
     _attr_icon = "mdi:gauge"
     _attr_native_min_value = 0
@@ -51,7 +103,7 @@ class OuvertureMaxNumber(F1atbActionEntity, NumberEntity):
 
     @property
     def name(self) -> str:
-        return f"{self._action_name} ouverture max"
+        return f"{self._action_name} ouverture (marche forcée)"
 
     @property
     def native_value(self) -> float | None:
