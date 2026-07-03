@@ -8,7 +8,6 @@ from __future__ import annotations
 import asyncio
 import logging
 
-import async_timeout
 from aiohttp import ClientError, ClientSession
 
 _LOGGER = logging.getLogger(__name__)
@@ -56,7 +55,7 @@ class F1atbClient:
     async def _get(self, path: str) -> str:
         url = self._base + path
         try:
-            async with async_timeout.timeout(TIMEOUT):
+            async with asyncio.timeout(TIMEOUT):
                 async with self._session.get(url) as resp:
                     resp.raise_for_status()
                     return await resp.text()
@@ -70,7 +69,7 @@ class F1atbClient:
         # un formulaire et le JSON serait ignoré (POST accepté mais SANS effet).
         headers = {"Content-Type": "text/plain"}
         try:
-            async with async_timeout.timeout(TIMEOUT):
+            async with asyncio.timeout(TIMEOUT):
                 async with self._session.post(
                     url, data=body.encode("utf-8"), headers=headers
                 ) as resp:
