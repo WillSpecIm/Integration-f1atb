@@ -40,18 +40,19 @@ Capteurs globaux : Soutirée réseau, Injectée réseau, Puissance routée, Éne
 
 ## Carte Lovelace interactive
 
-Une carte stylée (`f1atb-card.js`) est fournie : elle **auto-détecte** les entités de
-l'intégration et affiche, par action active, la forme d'onde (boutons), l'ouverture max
-(slider) et le forçage (Auto / Marche forcée / Arrêt forcé), plus les puissances de routage.
+Une carte stylée est fournie : elle **auto-détecte** les entités de l'intégration et affiche,
+par action active, la forme d'onde (boutons), l'ouverture max (slider) et le forçage
+(Auto / Marche forcée / Arrêt forcé), plus les puissances de routage.
 
-Installation :
-1. Copier `f1atb-card.js` dans `<config>/www/`
-2. **Paramètres → Tableaux de bord → Ressources → Ajouter** : URL `/local/f1atb-card.js`, type **Module JavaScript**
-3. Dans une vue : ajouter une carte **Manuel** avec :
-   ```yaml
-   type: custom:f1atb-card
-   ```
-   (aucune autre option nécessaire — la carte trouve le routeur toute seule)
+**La carte est chargée automatiquement par l'intégration** — rien à installer. Une fois
+l'intégration ajoutée :
+1. Sur un tableau de bord → **Ajouter une carte** → chercher **« F1ATB Solar Router »**
+   (elle apparaît avec un aperçu dans le sélecteur graphique)
+2. C'est tout : la carte trouve le routeur toute seule (aucune option à configurer)
+
+> Si elle n'apparaît pas tout de suite : videz le cache du navigateur (Ctrl+F5) après le
+> redémarrage de Home Assistant. En dernier recours, `f1atb-card.js` peut être ajouté
+> manuellement en ressource (`/f1atb/f1atb-card.js`).
 
 ## Comment ça marche
 
