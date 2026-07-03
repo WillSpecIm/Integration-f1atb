@@ -107,7 +107,8 @@ class F1atbClient:
         data["house_energy_import_today"] = _f(house, 4)  # EAJS_M (Wh)
         data["house_energy_export_today"] = _f(house, 5)  # EAJI_M (Wh)
         data["routed_power"] = _f(probe, 0)               # PwS_T (routée vers charge)
-        data["routed_energy_today"] = _f(probe, 4)        # EAJS_T (Wh)
+        data["routed_energy_today"] = _f(probe, 4)        # EAJS_T (Wh, journalier firmware - peut resetter au reboot)
+        data["routed_energy_total"] = _f(probe, 6)        # Energie_T_Soutiree (Wh cumulés à vie - ne resette pas)
 
         # températures (pipe-separated dans g0[5])
         temps = []
