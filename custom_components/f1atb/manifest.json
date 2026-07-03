@@ -3,10 +3,10 @@
   "name": "F1ATB Solar Router",
   "codeowners": ["@WillSpecIm"],
   "config_flow": true,
-  "documentation": "https://github.com/WillSpecIm/ha-f1atb",
+  "documentation": "https://github.com/WillSpecIm/Integration-f1atb",
   "integration_type": "device",
   "iot_class": "local_polling",
-  "issue_tracker": "https://github.com/WillSpecIm/ha-f1atb/issues",
+  "issue_tracker": "https://github.com/WillSpecIm/Integration-f1atb/issues",
   "requirements": [],
   "version": "0.1.0"
 }

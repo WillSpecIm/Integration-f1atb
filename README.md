@@ -27,7 +27,7 @@ Capteurs globaux : Soutirée réseau, Injectée réseau, Puissance routée, Éne
 ## Installation (HACS — dépôt personnalisé)
 
 1. HACS → menu ⋮ → **Dépôts personnalisés**
-2. URL : `https://github.com/WillSpecIm/ha-f1atb` — Catégorie : **Integration**
+2. URL : `https://github.com/WillSpecIm/Integration-f1atb` — Catégorie : **Integration**
 3. Installer, redémarrer Home Assistant
 4. **Paramètres → Appareils & services → Ajouter une intégration → F1ATB Solar Router**
 5. Saisir l'**adresse IP** du routeur (ex. `192.168.1.101`)
