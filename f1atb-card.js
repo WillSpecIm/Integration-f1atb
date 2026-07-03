@@ -38,7 +38,10 @@ const STYLE = `
 .wrap{background:var(--surf);border-radius:16px;overflow:hidden;font-family:var(--paper-font-body1_-_font-family,system-ui,sans-serif);color:var(--ink)}
 .head{display:flex;align-items:center;gap:12px;padding:14px 18px}
 .logo{height:44px;width:auto;flex:0 0 auto}
-.title{font-size:17px;font-weight:700}.sub{font-size:12px;color:var(--muted)}
+.title{font-size:17px;font-weight:700}
+.sub{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--muted);flex:none}
+.dot.on{background:var(--exp)}.dot.off{background:var(--imp)}
 .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;padding:0 18px 14px}
 .kpi{background:var(--plane);border:1px solid var(--line);border-radius:12px;padding:11px 13px}
 .kpi .l{font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);font-weight:600;display:flex;align-items:center;gap:6px}
@@ -90,6 +93,18 @@ class F1atbCard extends HTMLElement {
     if (!this._root) {
       this._root = this.attachShadow({ mode: "open" });
     }
+    // Anti-plantage : ne JAMAIS lever d'erreur (sinon HA affiche « erreur de configuration »),
+    // notamment quand le routeur est hors ligne et que les entités sont indisponibles.
+    try {
+      this._renderInner();
+    } catch (e) {
+      console.error("f1atb-card:", e);
+      this._root.innerHTML =
+        '<ha-card><div style="padding:18px;color:var(--secondary-text-color,#888)">Carte F1ATB momentanément indisponible.</div></ha-card>';
+    }
+  }
+
+  _renderInner() {
     const eids = this._entities();
     const globals = {};
     const actions = {}; // index -> {kind: eid}
@@ -113,6 +128,10 @@ class F1atbCard extends HTMLElement {
       if (dev && dev.name_by_user) routerName = dev.name_by_user;
       else if (dev && dev.name) routerName = dev.name;
     }
+
+    // État connecté (capteur binaire "Connecté", f1atb_kind='connected')
+    const connEid = globals.connected;
+    const online = connEid ? ((this._st(connEid) || {}).state === "on") : true;
 
     const kpi = (kind, label, tagVar, unit, energy) => {
       const eid = globals[kind];
@@ -168,7 +187,8 @@ class F1atbCard extends HTMLElement {
 
     this._root.innerHTML = `<style>${STYLE}</style>
       <ha-card><div class="wrap">
-        <div class="head">${LOGO}<div><div class="title">${routerName}</div><div class="sub">Routeur solaire F1ATB</div></div></div>
+        <div class="head">${LOGO}<div><div class="title">${routerName}</div>
+          <div class="sub"><span class="dot ${online ? "on" : "off"}"></span>${online ? "En ligne" : "Hors ligne"}</div></div></div>
         <div class="kpis">
           ${kpi("grid_import_power", "Soutirée", "--imp", "W", false)}
           ${kpi("grid_export_power", "Injectée", "--exp", "W", false)}

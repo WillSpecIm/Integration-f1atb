@@ -14,7 +14,12 @@ from .const import CONF_HOST, CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL, DOMAIN
 from .coordinator import F1atbCoordinator
 
 _LOGGER = logging.getLogger(__name__)
-PLATFORMS = [Platform.SENSOR, Platform.SELECT, Platform.NUMBER]
+PLATFORMS = [
+    Platform.BINARY_SENSOR,
+    Platform.SENSOR,
+    Platform.SELECT,
+    Platform.NUMBER,
+]
 CARD_URL = f"/{DOMAIN}/f1atb-card.js"
 
 
