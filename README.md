@@ -1,69 +1,165 @@
 # F1ATB Solar Router — intégration Home Assistant
 
+[![HACS Custom](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://hacs.xyz/)
+[![Release](https://img.shields.io/github/v/release/WillSpecIm/Integration-f1atb)](https://github.com/WillSpecIm/Integration-f1atb/releases)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+
 Intégration **Home Assistant** pour le [routeur solaire F1ATB](https://github.com/F1ATB/Solar-Router-F1ATB)
-(RMS ESP32), qui fonctionne avec le **firmware officiel, sans aucune modification**.
+(RMS / ESP32). Elle fonctionne avec le **firmware officiel, sans aucune modification** : tout se passe
+côté Home Assistant, en dialoguant avec le routeur via son **API HTTP locale** (`local_polling`, 100 % local,
+aucun cloud).
 
-Elle parle au routeur via son **API HTTP locale** (`local_polling`) pour **piloter** le routage
-depuis Home Assistant. La lecture des mesures (puissances, énergies…) reste disponible via la
-publication MQTT native du firmware ; cette intégration se concentre sur le **contrôle**.
+L'intégration **lit** les mesures (puissances, énergies, ouverture du routage, système) **et pilote** le
+routage (forme d'onde, ouverture max, marche/arrêt forcés) — le tout accompagné d'une **carte Lovelace
+interactive** qui suit le thème de votre interface.
 
-## Fonctionnalités
+<p align="center">
+  <img src="docs/card.png" alt="Carte Lovelace F1ATB" width="380">
+</p>
 
-L'intégration est **dynamique** : les entités n'apparaissent **que pour les actions actives**
-(une action dont la forme d'onde est « Inactif » n'a aucune entité). Dès qu'une action devient
-active/inactive (depuis HA ou l'interface web du routeur), les entités apparaissent/disparaissent.
+---
 
-Par action active :
+## ✨ Points forts
 
-| Entité | Type | Réglage | Endpoint |
+- **100 % firmware officiel** — rien à flasher, rien à modifier sur le routeur.
+- **Entités dynamiques** — elles n'apparaissent **que pour les actions actives** ; une action passée
+  en « Inactif » (depuis HA *ou* l'interface web du routeur) voit ses entités disparaître automatiquement.
+- **Pilotage complet** de chaque action : forme d'onde, ouverture max, forçage marche/arrêt.
+- **Énergie fiable** — le « routé aujourd'hui » est recalculé depuis le **compteur cumulé à vie**, donc
+  **insensible aux redémarrages** du routeur (voir plus bas).
+- **Capteur de disponibilité** (`Connecté`) pour suivre quand le routeur est en marche.
+- **Carte Lovelace stylée**, chargée automatiquement, **thème clair/sombre** automatique.
+- **Local & rapide** — polling toutes les 5 s (configurable), aucune dépendance externe.
+
+---
+
+## 📋 Entités
+
+### Par action active
+
+| Entité | Type | Réglage | Écriture |
 |---|---|---|---|
-| **Forme d'onde** | `select` | Inactif / Découpe (ou On-Off) / Demi-sinus / Multi-sinus / Train de sinus / PWM | `/ParaNew` (persistant) |
-| **Ouverture max** | `number` (0-100 %) | ouverture max si forcée (`ForceOuvre`) | `/ParaNew` (persistant) |
+| **Forme d'onde** | `select` | Inactif / Découpe (triac) ou On-Off (relais) / Demi-sinus / Multi-sinus / Train de sinus / PWM | `/ParaNew` — **persistant** |
+| **Ouverture max** | `number` (0–100 %) | ouverture maximale lorsque le routage est forcé (`ForceOuvre`) | `/ParaNew` — **persistant** |
 | **Forçage** | `select` | Auto / Marche forcée / Arrêt forcé | `/ForceAction` |
 | **Ouverture** | `sensor` (%) | ouverture instantanée du routage | lecture |
 
-Capteurs globaux : Soutirée réseau, Injectée réseau, Puissance routée, Énergie routée aujourd'hui.
+> L'index 0 correspond à la sortie **triac** (découpe de sinus) ; les index suivants aux **relais** (On/Off).
 
-## Installation (HACS — dépôt personnalisé)
+### Capteurs globaux (toujours présents)
 
-1. HACS → menu ⋮ → **Dépôts personnalisés**
+| Entité | Unité | Détail |
+|---|---|---|
+| **Soutirée réseau** | W | puissance tirée du réseau |
+| **Injectée réseau** | W | puissance injectée vers le réseau |
+| **Puissance routée** | W | puissance envoyée vers la charge |
+| **Énergie routée aujourd'hui** | kWh | journalier **robuste** (cumulé − minuit), remis à zéro à minuit |
+| **Énergie routée totale** | kWh | compteur **à vie** — idéal pour le tableau de bord Énergie |
+| **Connecté** | on/off | connectivité du routeur (reste dispo même hors ligne) |
+
+---
+
+## 🚀 Installation (HACS)
+
+1. HACS → menu **⋮** → **Dépôts personnalisés**
 2. URL : `https://github.com/WillSpecIm/Integration-f1atb` — Catégorie : **Integration**
-3. Installer, redémarrer Home Assistant
+3. **Télécharger** l'intégration, puis **redémarrer** Home Assistant
 4. **Paramètres → Appareils & services → Ajouter une intégration → F1ATB Solar Router**
 5. Saisir l'**adresse IP** du routeur (ex. `192.168.1.101`)
 
-## Options
+<details>
+<summary>Installation manuelle (sans HACS)</summary>
 
-- **Intervalle d'interrogation** (défaut 5 s)
-- **Durée d'un forçage** en minutes (défaut 720 = 12 h) : durée appliquée quand on choisit
-  « Marche forcée » ou « Arrêt forcé » (le firmware décompte puis repasse en Auto).
+Copiez le dossier `custom_components/f1atb/` dans le `config/custom_components/` de votre Home Assistant,
+redémarrez, puis ajoutez l'intégration comme ci-dessus.
+</details>
 
-## Carte Lovelace interactive
+---
 
-Une carte stylée est fournie : elle **auto-détecte** les entités de l'intégration et affiche,
-par action active, la forme d'onde (boutons), l'ouverture max (slider) et le forçage
-(Auto / Marche forcée / Arrêt forcé), plus les puissances de routage.
+## ⚙️ Options
 
-**La carte est chargée automatiquement par l'intégration** — rien à installer. Une fois
-l'intégration ajoutée :
-1. Sur un tableau de bord → **Ajouter une carte** → chercher **« F1ATB Solar Router »**
-   (elle apparaît avec un aperçu dans le sélecteur graphique)
-2. C'est tout : la carte trouve le routeur toute seule (aucune option à configurer)
+Accessibles via **Configurer** sur l'intégration :
 
-> Si elle n'apparaît pas tout de suite : videz le cache du navigateur (Ctrl+F5) après le
-> redémarrage de Home Assistant. En dernier recours, `f1atb-card.js` peut être ajouté
-> manuellement en ressource (`/f1atb/f1atb-card.js`).
+- **Intervalle d'interrogation** (défaut **5 s**) — plus court = détection plus rapide, plus de trafic.
+- **Durée d'un forçage** en minutes (défaut **720** = 12 h) — durée appliquée lorsqu'on choisit
+  « Marche forcée » / « Arrêt forcé » ; le firmware décompte puis repasse en Auto.
 
-## Comment ça marche
+---
 
-- Lecture : `/ajax_data`, `/ajax_etatActions`, `/ajax_dataESP32`
-- Config : `/ParaFixe` (mode `Actif`, `ForceOuvre`)
-- Écriture d'un réglage persistant : lecture de la config complète → modification du seul champ
-  concerné → renvoi via `/ParaNew` (exactement comme le bouton « Sauvegarder » de l'UI web).
-- Forçage : `/ForceAction?NumAction=…&Force=…`
+## 🎛️ Carte Lovelace
 
-Aucune clé d'accès n'est requise (les endpoints ajax et `/ForceAction` ne la vérifient pas).
+La carte `custom:f1atb-card` est **chargée automatiquement** par l'intégration (rien à installer) et
+**auto-détecte** le routeur. Elle affiche les tuiles de puissance, un indicateur **En ligne / Hors ligne**,
+et par action active : la forme d'onde (boutons), l'ouverture max (curseur) et le forçage. Elle **suit le
+thème** de Home Assistant (clair/sombre).
 
-## Licence
+**Ajout :** tableau de bord → **Ajouter une carte** → chercher **« F1ATB Solar Router »** (avec aperçu).
 
-MIT.
+<details>
+<summary>Si la carte n'apparaît pas dans le sélecteur</summary>
+
+1. Videz le cache du navigateur (**Ctrl+F5**) après le redémarrage de HA.
+2. Sinon, ajoutez-la en **ressource** : Paramètres → Tableaux de bord → Ressources → Ajouter →
+   URL `/f1atb/f1atb-card.js`, type **Module JavaScript** → Ctrl+F5.
+
+Vous pouvez aussi construire une carte avec les **cartes natives** de HA (les `select` s'affichent en menu
+déroulant, les `number` en curseur) — aucune carte custom nécessaire.
+</details>
+
+---
+
+## 🔋 Suivi d'énergie fiable
+
+Le compteur journalier interne du firmware peut se remettre à zéro lors d'un **redémarrage du routeur**.
+Cette intégration contourne le problème :
+
+- **Énergie routée aujourd'hui** = *compteur cumulé actuel − compteur cumulé à minuit*. La référence de
+  minuit est **mémorisée côté Home Assistant** (elle survit à un redémarrage du routeur **et** de HA).
+- Pour l'onglet **Énergie** de Home Assistant, utilisez plutôt **Énergie routée totale** (compteur à vie) :
+  HA calcule lui-même les totaux jour/mois, de façon totalement robuste.
+
+---
+
+## 🔎 Comment ça marche
+
+| Usage | Endpoint(s) |
+|---|---|
+| Mesures live (puissances, énergies, températures) | `/ajax_data` |
+| État des actions **actives** (pilote les entités dynamiques) | `/ajax_etatActions` |
+| Système (uptime, RSSI, mémoire, IP) | `/ajax_dataESP32` |
+| Configuration (mode `Actif`, `ForceOuvre`) | `/ParaFixe` |
+| Écriture d'un réglage persistant | lecture `/ParaFixe` → modif du champ → renvoi `/ParaNew` |
+| Forçage marche/arrêt | `/ForceAction?NumAction=…&Force=…` |
+
+Aucune clé d'accès n'est requise (les endpoints ajax et `/ForceAction` ne la vérifient pas). Une écriture
+persistante reproduit exactement le bouton « Sauvegarder » de l'interface web du routeur.
+
+> **Note technique :** `/ParaNew` doit être envoyé en `Content-Type: text/plain` — sinon l'ESP32 parse le
+> corps comme un formulaire et **ignore silencieusement** le JSON (réponse OK mais sans effet).
+
+---
+
+## 🩺 Dépannage
+
+- **« icône non disponible » sur l'intégration** — normal pour une intégration custom (nécessiterait une PR
+  sur `home-assistant/brands`). Sans effet sur le fonctionnement.
+- **Routeur hors ligne** — la carte ne plante pas : elle affiche « Hors ligne », et le capteur `Connecté`
+  passe à *off*. Le retour en ligne est automatique.
+- **Une action n'a pas d'entités** — c'est voulu : seules les actions **actives** en ont. Activez la forme
+  d'onde (≠ Inactif) sur le routeur ou depuis HA.
+
+---
+
+## 📦 Versions
+
+Voir les [Releases](https://github.com/WillSpecIm/Integration-f1atb/releases). Mise à jour via HACS
+(⋮ → *Re-télécharger* / *Update*).
+
+## 📄 Licence
+
+[MIT](LICENSE).
+
+---
+
+*Ce projet n'est pas affilié à F1ATB ; il s'appuie sur l'API publique du firmware officiel. Merci à
+[F1ATB](https://github.com/F1ATB/Solar-Router-F1ATB) pour ce super routeur solaire open-source.*
