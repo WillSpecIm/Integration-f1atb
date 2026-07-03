@@ -24,7 +24,17 @@ const LOGO = `
 </svg>`;
 
 const STYLE = `
-:host{--imp:#f0663d;--exp:#12b981;--triac:#2f7ff0;--relais:#0ea5a5;--ink:#141821;--ink2:#565c6a;--muted:#8a909c;--line:#e6e8ee;--surf:#fff;--plane:#f4f6f9}
+:host{
+ /* Couleurs sémantiques (fixes, elles portent un sens) */
+ --imp:#f0663d;--exp:#12b981;--triac:#2f7ff0;--relais:#0ea5a5;
+ /* Surfaces / texte / traits : suivent le thème HA (dark<->light auto) */
+ --ink:var(--primary-text-color,#141821);
+ --ink2:var(--secondary-text-color,#565c6a);
+ --muted:var(--secondary-text-color,#8a909c);
+ --line:var(--divider-color,#e6e8ee);
+ --surf:var(--ha-card-background,var(--card-background-color,#fff));
+ --plane:var(--secondary-background-color,#f4f6f9);
+}
 .wrap{background:var(--surf);border-radius:16px;overflow:hidden;font-family:var(--paper-font-body1_-_font-family,system-ui,sans-serif);color:var(--ink)}
 .head{display:flex;align-items:center;gap:12px;padding:14px 18px}
 .logo{height:44px;width:auto;flex:0 0 auto}
@@ -39,13 +49,13 @@ const STYLE = `
 .act .top{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px}
 .act .nm{font-size:15px;font-weight:650}
 .act .ouv{font-size:15px;font-weight:700;color:var(--triac)}
-.bar{height:8px;border-radius:5px;background:#e5e8ee;overflow:hidden;margin-bottom:14px}
+.bar{height:8px;border-radius:5px;background:var(--line);overflow:hidden;margin-bottom:14px}
 .bar i{display:block;height:100%;border-radius:5px;background:var(--triac);transition:width .4s}
 .row{margin-bottom:12px}
 .row>.lab{font-size:11.5px;color:var(--ink2);font-weight:600;margin-bottom:6px;display:flex;justify-content:space-between}
 .seg{display:flex;flex-wrap:wrap;gap:6px}
 .seg button{flex:1 1 auto;min-width:64px;border:1px solid var(--line);background:var(--plane);color:var(--ink2);border-radius:9px;padding:8px 10px;font-size:12.5px;font-weight:600;cursor:pointer;transition:all .12s}
-.seg button:hover{background:#eef1f6}
+.seg button:hover{border-color:var(--primary-color,var(--triac))}
 .seg button.on{background:var(--triac);border-color:var(--triac);color:#fff;box-shadow:0 2px 7px rgba(47,127,240,.3)}
 .forc button.on.marche{background:var(--exp);border-color:var(--exp);box-shadow:0 2px 7px rgba(18,185,129,.3)}
 .forc button.on.arret{background:var(--imp);border-color:var(--imp);box-shadow:0 2px 7px rgba(240,102,61,.3)}
