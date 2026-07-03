@@ -1,8 +1,13 @@
-# F1ATB Solar Router — intégration Home Assistant
+<p align="center">
+  <img src="docs/banner.png" alt="F1ATB Solar Router — intégration Home Assistant" width="100%">
+</p>
 
-[![HACS Custom](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://hacs.xyz/)
-[![Release](https://img.shields.io/github/v/release/WillSpecIm/Integration-f1atb)](https://github.com/WillSpecIm/Integration-f1atb/releases)
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+<p align="center">
+  <a href="https://hacs.xyz/"><img src="https://img.shields.io/badge/HACS-Custom-41BDF5.svg" alt="HACS Custom"></a>
+  <a href="https://github.com/WillSpecIm/Integration-f1atb/releases"><img src="https://img.shields.io/github/v/release/WillSpecIm/Integration-f1atb" alt="Release"></a>
+  <img src="https://img.shields.io/badge/Home%20Assistant-2024.4%2B-41BDF5?logo=home-assistant&logoColor=white" alt="Home Assistant">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-green.svg" alt="License: MIT"></a>
+</p>
 
 Intégration **Home Assistant** pour le [routeur solaire F1ATB](https://github.com/F1ATB/Solar-Router-F1ATB)
 (RMS / ESP32). Elle fonctionne avec le **firmware officiel, sans aucune modification** : tout se passe
@@ -13,9 +18,16 @@ L'intégration **lit** les mesures (puissances, énergies, ouverture du routage,
 routage (forme d'onde, ouverture max, marche/arrêt forcés) — le tout accompagné d'une **carte Lovelace
 interactive** qui suit le thème de votre interface.
 
-<p align="center">
-  <img src="docs/card.png" alt="Carte Lovelace F1ATB" width="380">
-</p>
+<table align="center">
+  <tr>
+    <td align="center"><b>Thème clair</b></td>
+    <td align="center"><b>Thème sombre</b></td>
+  </tr>
+  <tr>
+    <td><img src="docs/card-light.png" alt="Carte F1ATB — thème clair" width="360"></td>
+    <td><img src="docs/card-dark.png" alt="Carte F1ATB — thème sombre" width="360"></td>
+  </tr>
+</table>
 
 ---
 
@@ -121,6 +133,10 @@ Cette intégration contourne le problème :
 ---
 
 ## 🔎 Comment ça marche
+
+<p align="center">
+  <img src="docs/architecture.png" alt="Architecture : Home Assistant ⇄ HTTP local ⇄ routeur F1ATB ⇄ charge" width="100%">
+</p>
 
 | Usage | Endpoint(s) |
 |---|---|
