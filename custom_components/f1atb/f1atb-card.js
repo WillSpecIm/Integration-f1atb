@@ -66,8 +66,11 @@ class F1atbCard extends HTMLElement {
   }
 
   _entities() {
-    const reg = this._hass.entities || {};
-    return Object.keys(reg).filter((eid) => reg[eid] && reg[eid].platform === "f1atb");
+    // Détection robuste : toutes les entités de l'intégration portent l'attribut f1atb_kind.
+    const states = this._hass.states || {};
+    return Object.keys(states).filter(
+      (eid) => states[eid] && states[eid].attributes && states[eid].attributes.f1atb_kind
+    );
   }
 
   _st(eid) { return this._hass.states[eid]; }
