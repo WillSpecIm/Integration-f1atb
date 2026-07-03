@@ -1,0 +1,24 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "F1ATB Solar Router",
+        "description": "IP address or hostname of the router (e.g. {exemple}).",
+        "data": { "host": "Host" }
+      }
+    },
+    "error": { "cannot_connect": "Cannot connect to the router." },
+    "abort": { "already_configured": "This router is already configured." }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Options",
+        "data": {
+          "scan_interval": "Polling interval (s)",
+          "force_minutes": "Forcing duration (minutes)"
+        }
+      }
+    }
+  }
+}

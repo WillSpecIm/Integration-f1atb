@@ -1,0 +1,24 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Routeur solaire F1ATB",
+        "description": "Adresse IP ou nom d'hôte du routeur (ex. {exemple}).",
+        "data": { "host": "Hôte" }
+      }
+    },
+    "error": { "cannot_connect": "Connexion impossible au routeur." },
+    "abort": { "already_configured": "Ce routeur est déjà configuré." }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Options",
+        "data": {
+          "scan_interval": "Intervalle d'interrogation (s)",
+          "force_minutes": "Durée d'un forçage (minutes)"
+        }
+      }
+    }
+  }
+}
