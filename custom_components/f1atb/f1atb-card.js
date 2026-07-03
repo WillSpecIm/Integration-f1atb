@@ -244,7 +244,7 @@ class F1atbCard extends HTMLElement {
         mfHtml = `<div class="row"><div class="lab"><span>Marche forcée à une puissance</span><span class="hint" data-role="mfpct">→ ${op} %</span></div>
           <div class="pwr">
             <input type="number" inputmode="numeric" min="0" max="${pmax}" step="50" value="${mfVal}" data-role="mfw" data-eid="${A.marche_forcee_w}" data-pmax="${pmax}"><span class="u">W</span>
-            <button class="ghost" data-role="mfauto" data-eid="${A.marche_forcee_w}">Auto</button>
+            <button class="ghost" data-role="mfauto" data-eid="${A.marche_forcee_w}" title="Remettre à 0 (retour Auto)">Effacer</button>
           </div>`
           + (A.puissance_max ? `<div class="pmax">Puissance max de l'appareil <input type="number" inputmode="numeric" min="0" step="50" value="${pmax}" data-role="pmax" data-eid="${A.puissance_max}"><span class="u">W</span>${calBtn}</div>` : ``)
           + `</div>`;
