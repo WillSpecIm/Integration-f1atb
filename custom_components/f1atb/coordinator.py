@@ -7,6 +7,7 @@ Le mode + ForceOuvre sont fusionnés dans chaque action live pour simplifier les
 """
 from __future__ import annotations
 
+import asyncio
 from datetime import timedelta
 import logging
 
@@ -19,6 +20,12 @@ from .api import F1atbApiError, F1atbClient
 _LOGGER = logging.getLogger(__name__)
 
 CONFIG_EVERY = 6  # rafraîchir la config tous les N cycles (~30 s à 5 s d'intervalle)
+
+# --- Calibration auto de la puissance max ---
+CALIB_FORCE_MINUTES = 2   # forçage court = sécurité si le retour Auto échoue
+CALIB_SETTLE_S = 5        # délai pour que la mesure s'adapte après ouverture à 100 %
+CALIB_SAMPLES = 5         # nombre d'échantillons de puissance routée…
+CALIB_INTERVAL_S = 2      # …espacés de N s (≈ 10 s de moyenne)
 
 
 class F1atbCoordinator(DataUpdateCoordinator[dict]):
@@ -39,7 +46,67 @@ class F1atbCoordinator(DataUpdateCoordinator[dict]):
         self.entry = entry
         self.config: dict = {}
         self.force_minutes: dict[int, int] = {}  # durée de forçage choisie dans HA, par action
+        # Calibration côté HA (le firmware n'a pas ce champ) : puissance consommée par
+        # l'appareil à 100 % d'ouverture, par action. Sert au mode "puissance à router".
+        self.appliance_max_power: dict[int, float] = {}
+        self._calibrating: set[int] = set()
         self._config_countdown = 0
+
+    def is_calibrating(self, index: int) -> bool:
+        return index in self._calibrating
+
+    async def async_calibrate(self, index: int) -> None:
+        """Calibre la puissance max : ouvre à 100 %, laisse la mesure s'adapter, moyenne
+        la puissance routée sur ~10 s, enregistre le résultat, puis repasse en Auto.
+
+        Sécurité : forçage court (CALIB_FORCE_MINUTES) et retour Auto dans un `finally`,
+        pour ne jamais laisser l'appareil forcé en marche si quelque chose échoue.
+        """
+        if index in self._calibrating:
+            return
+        self._calibrating.add(index)
+        self.async_update_listeners()  # rafraîchit l'UI (calibration en cours)
+        try:
+            def _mutate(config: dict) -> None:
+                actions = config.get("Actions") or []
+                if 0 <= index < len(actions):
+                    actions[index]["ForceOuvre"] = 100  # ouverture 100 %
+
+            await self.client.async_patch_config(_mutate)
+            await self.client.async_force_action(index, CALIB_FORCE_MINUTES)  # marche forcée
+            await self.async_refresh_config()
+
+            await asyncio.sleep(CALIB_SETTLE_S)  # délai d'adaptation de la mesure
+
+            samples: list[float] = []
+            for _ in range(CALIB_SAMPLES):
+                await self.async_request_refresh()
+                p = (self.data or {}).get("routed_power")
+                try:
+                    p = float(p)
+                except (TypeError, ValueError):
+                    p = None
+                if p is not None and p > 0:
+                    samples.append(p)
+                await asyncio.sleep(CALIB_INTERVAL_S)
+
+            if samples:
+                avg = sum(samples) / len(samples)
+                self.appliance_max_power[index] = round(avg)
+                _LOGGER.info(
+                    "Calibration action %s : %d W (moyenne de %d mesures)",
+                    index, round(avg), len(samples),
+                )
+            else:
+                _LOGGER.warning(
+                    "Calibration action %s : aucune puissance mesurée (appareil déjà chaud ?)",
+                    index,
+                )
+        finally:
+            await self.client.async_force_action(index, 0)  # retour Auto, quoi qu'il arrive
+            self._calibrating.discard(index)
+            await self.async_request_refresh()
+            self.async_update_listeners()
 
     async def async_refresh_config(self) -> None:
         """Relit la config complète (après une écriture, pour refléter le changement)."""

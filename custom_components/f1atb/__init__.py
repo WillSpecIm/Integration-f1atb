@@ -19,6 +19,7 @@ PLATFORMS = [
     Platform.SENSOR,
     Platform.SELECT,
     Platform.NUMBER,
+    Platform.BUTTON,
 ]
 CARD_URL = f"/{DOMAIN}/f1atb-card.js"
 

@@ -37,6 +37,8 @@ interactive** qui suit le thème de votre interface.
 - **Entités dynamiques** — elles n'apparaissent **que pour les actions actives** ; une action passée
   en « Inactif » (depuis HA *ou* l'interface web du routeur) voit ses entités disparaître automatiquement.
 - **Pilotage complet** de chaque action : forme d'onde, ouverture max, forçage marche/arrêt.
+- **Marche forcée à une puissance donnée (W)** — entrez la puissance à router, l'ouverture est calculée
+  automatiquement ; **calibration auto** de la puissance max de l'appareil en un clic (voir plus bas).
 - **Énergie fiable** — le « routé aujourd'hui » est recalculé depuis le **compteur cumulé à vie**, donc
   **insensible aux redémarrages** du routeur (voir plus bas).
 - **Capteur de disponibilité** (`Connecté`) pour suivre quand le routeur est en marche.
@@ -54,6 +56,9 @@ interactive** qui suit le thème de votre interface.
 | **Forme d'onde** | `select` | Inactif / Découpe (triac) ou On-Off (relais) / Demi-sinus / Multi-sinus / Train de sinus / PWM | `/ParaNew` — **persistant** |
 | **Ouverture max** | `number` (0–100 %) | ouverture maximale lorsque le routage est forcé (`ForceOuvre`) | `/ParaNew` — **persistant** |
 | **Forçage** | `select` | Auto / Marche forcée / Arrêt forcé | `/ForceAction` |
+| **Marche forcée (W)** | `number` (W) | puissance à router de force → ouverture calculée + marche forcée ; **0 = Auto** | `/ParaNew` + `/ForceAction` |
+| **Puissance max** | `number` (W) | calibration : puissance à 100 % d'ouverture (côté HA, saisie manuelle possible) | — (stocké dans HA) |
+| **Calibrer puissance max** | `button` | lance la mesure automatique de la puissance max | `/ForceAction` |
 | **Ouverture** | `sensor` (%) | ouverture instantanée du routage | lecture |
 
 > L'index 0 correspond à la sortie **triac** (découpe de sinus) ; les index suivants aux **relais** (On/Off).
@@ -129,6 +134,24 @@ Cette intégration contourne le problème :
   minuit est **mémorisée côté Home Assistant** (elle survit à un redémarrage du routeur **et** de HA).
 - Pour l'onglet **Énergie** de Home Assistant, utilisez plutôt **Énergie routée totale** (compteur à vie) :
   HA calcule lui-même les totaux jour/mois, de façon totalement robuste.
+
+---
+
+## ⚡ Marche forcée à une puissance donnée
+
+Plutôt que de raisonner en pourcentage d'ouverture, vous indiquez directement **la puissance à router** :
+
+1. **Calibrez une fois** la puissance max de l'appareil (puissance consommée à 100 % d'ouverture) :
+   - **Automatique** : bouton **« Calibrer »** → l'intégration ouvre à 100 %, laisse la mesure se stabiliser,
+     **moyenne la puissance routée sur ~10 s** et enregistre le résultat (procédure ~15 s, retour en Auto ensuite).
+   - **Manuel** : saisissez la valeur à la main dans **« Puissance max de l'appareil »** (les deux méthodes
+     restent utilisables à tout moment).
+2. **Entrez la puissance à router** dans **« Marche forcée (W) »** (ex. `1500`). L'intégration calcule
+   l'ouverture (`puissance / puissance_max × 100`, ex. **50 %**), l'écrit et **force la marche**.
+3. **Revenez en Auto** en remettant `0` (ou via le bouton **Auto** de la carte / le sélecteur *Forçage*).
+
+> 💡 Calibrez quand l'appareil peut réellement consommer (ex. chauffe-eau froid) pour mesurer sa vraie
+> puissance. La relation puissance/ouverture est supposée linéaire (approximation suffisante en pratique).
 
 ---
 

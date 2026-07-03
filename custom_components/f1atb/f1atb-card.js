@@ -65,16 +65,35 @@ const STYLE = `
 .slider{display:flex;align-items:center;gap:10px}
 .slider input[type=range]{flex:1;accent-color:var(--triac)}
 .slider .val{font-size:14px;font-weight:700;min-width:44px;text-align:right}
+.hint{color:var(--triac);font-weight:700}
+.pwr{display:flex;align-items:center;gap:9px}
+.pwr input[type=number],.pmax input[type=number]{border:1px solid var(--line);border-radius:10px;background:var(--plane);color:var(--ink);font-weight:650;font-variant-numeric:tabular-nums}
+.pwr input[type=number]{width:96px;padding:9px 11px;font-size:16px}
+.u{color:var(--muted);font-size:13px}
+.ghost{margin-left:auto;padding:9px 15px;border:1px solid var(--line);border-radius:10px;background:var(--plane);color:var(--ink2);font-weight:600;cursor:pointer;font-size:13px;transition:all .12s}
+.ghost:hover{border-color:var(--primary-color,var(--triac))}
+.pmax{display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--muted);margin-top:9px;flex-wrap:wrap}
+.pmax input[type=number]{width:78px;padding:6px 9px;font-size:12.5px;font-weight:600}
+.cal{margin-left:auto;padding:6px 12px;border:1px solid var(--triac);border-radius:9px;background:transparent;color:var(--triac);font-weight:700;font-size:12px;cursor:pointer;transition:all .12s}
+.cal:hover{background:var(--triac);color:#fff}
+.cal.busy{border-color:var(--muted);color:var(--muted);cursor:progress}
+.cal.busy:hover{background:transparent;color:var(--muted)}
 .empty{padding:26px;text-align:center;color:var(--muted);font-size:13px}
 `;
 
 const FMT = (n, d = 0) => (n == null || isNaN(n)) ? "—" : Number(n).toLocaleString("fr-FR", { maximumFractionDigits: d, minimumFractionDigits: d });
+// Échappement HTML : le nom du routeur/action est du texte libre (firmware) injecté dans innerHTML.
+const ESC = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
 class F1atbCard extends HTMLElement {
   setConfig(config) { this._config = config || {}; }
 
   set hass(hass) {
     this._hass = hass;
+    // Ne pas reconstruire la carte pendant que l'utilisateur saisit dans un champ
+    // (sinon le focus et la valeur en cours seraient perdus à chaque mise à jour d'état).
+    const ae = this._root && this._root.activeElement;
+    if (ae && ae.tagName === "INPUT") return;
     this._render();
   }
 
@@ -159,7 +178,7 @@ class F1atbCard extends HTMLElement {
       if (fondeS) {
         const opts = fondeS.attributes.options || [];
         ondeHtml = `<div class="row"><div class="lab"><span>Forme d'onde</span></div><div class="seg" data-role="onde" data-eid="${A.forme_onde}">` +
-          opts.map((o) => `<button class="${o === fondeS.state ? "on" : ""}" data-opt="${o}">${o}</button>`).join("") + `</div></div>`;
+          opts.map((o) => `<button class="${o === fondeS.state ? "on" : ""}" data-opt="${ESC(o)}">${ESC(o)}</button>`).join("") + `</div></div>`;
       }
       // ouverture max : slider
       let omHtml = "";
@@ -173,21 +192,45 @@ class F1atbCard extends HTMLElement {
       let forcHtml = "";
       if (forcS) {
         const cur = forcS.state;
-        const mk = (label, cls) => `<button class="${cur === label ? "on " + cls : ""}" data-opt="${label}">${label}</button>`;
+        // data-opt = la VRAIE option de l'entité (ex. "Forcé Marche") ; on n'affiche qu'un libellé lisible.
+        const FORC_LABEL = { "Auto": "Auto", "Forcé Marche": "Marche forcée", "Forcé Arrêt": "Arrêt forcé" };
+        const FORC_CLS = { "Forcé Marche": "marche", "Forcé Arrêt": "arret" };
+        const opts = forcS.attributes.options || ["Auto", "Forcé Marche", "Forcé Arrêt"];
         forcHtml = `<div class="row"><div class="lab"><span>Forçage</span></div><div class="seg forc" data-role="forc" data-eid="${A.forcage}">` +
-          mk("Auto", "") + mk("Marche forcée", "marche") + mk("Arrêt forcé", "arret") + `</div></div>`;
+          opts.map((v) => `<button class="${cur === v ? "on " + (FORC_CLS[v] || "") : ""}" data-opt="${ESC(v)}">${ESC(FORC_LABEL[v] || v)}</button>`).join("") + `</div></div>`;
+      }
+
+      // marche forcée à une puissance donnée (l'ouverture est calculée automatiquement)
+      let mfHtml = "";
+      const mfS = A.marche_forcee_w ? this._st(A.marche_forcee_w) : null;
+      if (mfS) {
+        const pmaxS = A.puissance_max ? this._st(A.puissance_max) : null;
+        const pmax = (pmaxS ? Number(pmaxS.state) : Number(mfS.attributes.puissance_max)) || 3000;
+        const calibrating = !!(pmaxS && pmaxS.attributes && pmaxS.attributes.calibrating);
+        const mfVal = Number(mfS.state) || 0;
+        const op = pmax ? Math.max(0, Math.min(100, Math.round(mfVal / pmax * 100))) : 0;
+        const calBtn = A.calibrer
+          ? `<button class="cal ${calibrating ? "busy" : ""}" data-role="cal" data-eid="${A.calibrer}" ${calibrating ? "disabled" : ""}>${calibrating ? "Calibration…" : "⚙ Calibrer"}</button>`
+          : ``;
+        mfHtml = `<div class="row"><div class="lab"><span>Marche forcée à une puissance</span><span class="hint" data-role="mfpct">→ ${op} %</span></div>
+          <div class="pwr">
+            <input type="number" inputmode="numeric" min="0" max="${pmax}" step="50" value="${mfVal}" data-role="mfw" data-eid="${A.marche_forcee_w}" data-pmax="${pmax}"><span class="u">W</span>
+            <button class="ghost" data-role="mfauto" data-eid="${A.marche_forcee_w}">Auto</button>
+          </div>`
+          + (A.puissance_max ? `<div class="pmax">Puissance max de l'appareil <input type="number" inputmode="numeric" min="0" step="50" value="${pmax}" data-role="pmax" data-eid="${A.puissance_max}"><span class="u">W</span>${calBtn}</div>` : ``)
+          + `</div>`;
       }
 
       actionsHtml += `<div class="act">
-        <div class="top"><div class="nm">${A.name || "Action " + i}</div><div class="ouv">${ouv == null ? "" : FMT(ouv) + " %"}</div></div>
+        <div class="top"><div class="nm">${ESC(A.name || "Action " + i)}</div><div class="ouv">${ouv == null ? "" : FMT(ouv) + " %"}</div></div>
         <div class="bar"><i style="width:${Math.max(0, Math.min(100, ouv || 0))}%"></i></div>
-        ${ondeHtml}${omHtml}${forcHtml}
+        ${ondeHtml}${omHtml}${forcHtml}${mfHtml}
       </div>`;
     }
 
     this._root.innerHTML = `<style>${STYLE}</style>
       <ha-card><div class="wrap">
-        <div class="head">${LOGO}<div><div class="title">${routerName}</div>
+        <div class="head">${LOGO}<div><div class="title">${ESC(routerName)}</div>
           <div class="sub"><span class="dot ${online ? "on" : "off"}"></span>${online ? "En ligne" : "Hors ligne"}</div></div></div>
         <div class="kpis">
           ${kpi("grid_import_power", "Soutirée", "--imp", "W", false)}
@@ -220,6 +263,49 @@ class F1atbCard extends HTMLElement {
         this._hass.callService("number", "set_value", { entity_id: eid, value: Number(sl.value) });
       };
     });
+    // Marche forcée (W) : l'ouverture % s'affiche en direct, l'écriture force la marche
+    this._root.querySelectorAll('input[data-role="mfw"]').forEach((inp) => {
+      const eid = inp.getAttribute("data-eid");
+      const pmax = Number(inp.getAttribute("data-pmax")) || 3000;
+      const row = inp.closest(".row");
+      const pct = row ? row.querySelector('[data-role="mfpct"]') : null;
+      inp.oninput = () => {
+        const op = pmax ? Math.max(0, Math.min(100, Math.round((Number(inp.value) || 0) / pmax * 100))) : 0;
+        if (pct) pct.textContent = "→ " + op + " %";
+      };
+      inp.onchange = () => {
+        const v = Math.min(pmax, Math.max(0, Number(inp.value) || 0));  // borne à la puissance max
+        inp.value = v;
+        this._hass.callService("number", "set_value", { entity_id: eid, value: v });
+      };
+    });
+    // Bouton Auto : arrête la marche forcée (remet 0)
+    this._root.querySelectorAll('button[data-role="mfauto"]').forEach((b) => {
+      const eid = b.getAttribute("data-eid");
+      b.onclick = () => {
+        const row = b.closest(".row");
+        const inp = row ? row.querySelector('input[data-role="mfw"]') : null;
+        if (inp) inp.value = 0;
+        const pct = row ? row.querySelector('[data-role="mfpct"]') : null;
+        if (pct) pct.textContent = "→ 0 %";
+        this._hass.callService("number", "set_value", { entity_id: eid, value: 0 });
+      };
+    });
+    // Saisie MANUELLE de la puissance max de l'appareil
+    this._root.querySelectorAll('input[data-role="pmax"]').forEach((inp) => {
+      const eid = inp.getAttribute("data-eid");
+      inp.onchange = () => {
+        this._hass.callService("number", "set_value", { entity_id: eid, value: Math.max(0, Number(inp.value) || 0) });
+      };
+    });
+    // Bouton Calibrer : lance la mesure auto de la puissance max
+    this._root.querySelectorAll('button[data-role="cal"]').forEach((b) => {
+      const eid = b.getAttribute("data-eid");
+      b.onclick = () => {
+        if (b.classList.contains("busy")) return;
+        this._hass.callService("button", "press", { entity_id: eid });
+      };
+    });
   }
 
   getCardSize() { return 6; }
@@ -231,7 +317,7 @@ window.customCards = window.customCards || [];
 window.customCards.push({
   type: "f1atb-card",
   name: "F1ATB Solar Router",
-  description: "Carte interactive pour piloter le routeur solaire F1ATB (forme d'onde, ouverture max, forçage).",
+  description: "Carte interactive pour piloter le routeur solaire F1ATB (forme d'onde, ouverture max, forçage, marche forcée à une puissance donnée).",
   preview: true,
 });
 console.info("%c F1ATB-CARD %c chargée ", "background:#2f7ff0;color:#fff;border-radius:4px 0 0 4px;padding:2px 6px", "background:#17181c;color:#fff;border-radius:0 4px 4px 0;padding:2px 6px");
