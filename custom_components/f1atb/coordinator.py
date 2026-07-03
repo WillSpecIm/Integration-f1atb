@@ -11,6 +11,7 @@ import asyncio
 from datetime import timedelta
 import logging
 
+from homeassistant.components import persistent_notification
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
@@ -90,17 +91,32 @@ class F1atbCoordinator(DataUpdateCoordinator[dict]):
                     samples.append(p)
                 await asyncio.sleep(CALIB_INTERVAL_S)
 
+            act = (self.data or {}).get("actions", {}).get(index, {})
+            name = act.get("name") or f"action {index}"
+            notif_id = f"f1atb_calib_{index}"
             if samples:
                 avg = sum(samples) / len(samples)
                 self.appliance_max_power[index] = round(avg)
                 _LOGGER.info(
-                    "Calibration action %s : %d W (moyenne de %d mesures)",
-                    index, round(avg), len(samples),
+                    "Calibration %s : %d W (moyenne de %d mesures)",
+                    name, round(avg), len(samples),
                 )
+                persistent_notification.async_dismiss(self.hass, notif_id)  # efface un ancien warning
             else:
+                # Aucune puissance routée mesurée → appareil qui ne consomme pas pendant la mesure
+                # (ex. chauffe-eau déjà chaud / thermostat coupé). On NE change PAS la puissance max.
                 _LOGGER.warning(
-                    "Calibration action %s : aucune puissance mesurée (appareil déjà chaud ?)",
-                    index,
+                    "Calibration %s : aucune puissance mesurée (appareil déjà chaud ?)", name,
+                )
+                persistent_notification.async_create(
+                    self.hass,
+                    f"La calibration de **{name}** n'a mesuré **aucune puissance routée**.\n\n"
+                    "L'appareil consomme-t-il réellement pendant la mesure ? "
+                    "(ex. chauffe-eau déjà chaud, thermostat coupé, disjoncteur ouvert).\n\n"
+                    "➡️ La puissance max **n'a pas été modifiée**. Relancez la calibration quand l'appareil "
+                    "peut consommer, ou saisissez la valeur manuellement.",
+                    title="F1ATB — calibration sans effet",
+                    notification_id=notif_id,
                 )
         finally:
             await self.client.async_force_action(index, 0)  # retour Auto, quoi qu'il arrive
