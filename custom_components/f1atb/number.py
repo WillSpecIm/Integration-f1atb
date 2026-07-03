@@ -30,8 +30,9 @@ async def async_setup_entry(
             PuissanceMaxNumber(coordinator, index),
             MarcheForceePuissanceNumber(coordinator, index, entry),
         ]
-        if index == 0:  # triac : ouverture max en routage AUTO (Vmax %)
-            items.append(AutoOuvertureMaxNumber(coordinator, index))
+        # Ouverture max en routage AUTO (Vmax %) — créée pour toute action pilotée
+        # (pertinent pour le triac/SSR en mode proportionnel : Demi-sinus, PWM, etc.).
+        items.append(AutoOuvertureMaxNumber(coordinator, index))
         return items
 
     async_setup_action_platform(entry, coordinator, async_add_entities, factory)
