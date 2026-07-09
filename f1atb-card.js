@@ -198,7 +198,9 @@ class F1atbCard extends HTMLElement {
     const actIdx = Object.keys(actions).map(Number).sort((a, b) => a - b);
     let actionsHtml = "";
     if (actIdx.length === 0) {
-      actionsHtml = `<div class="empty">Aucune action active.<br>Activez une action sur le routeur pour la piloter ici.</div>`;
+      actionsHtml = online
+        ? `<div class="empty">Aucune action active.<br>Activez une action sur le routeur pour la piloter ici.</div>`
+        : `<div class="empty">Routeur hors ligne.<br>Les commandes réapparaîtront à la remise sous tension.</div>`;
     }
     for (const i of actIdx) {
       const A = actions[i];

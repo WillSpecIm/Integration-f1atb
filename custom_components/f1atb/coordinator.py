@@ -138,12 +138,15 @@ class F1atbCoordinator(DataUpdateCoordinator[dict]):
         except F1atbApiError as err:
             raise UpdateFailed(str(err)) from err
 
-        if self._config_countdown <= 0:
+        # `not self.config` : au retour d'un démarrage hors tension, la config est vide →
+        # on la relit SANS attendre. Le compteur n'est réarmé qu'en cas de SUCCÈS, sinon
+        # on retenterait seulement 6 cycles plus tard (entités avec mode/ouverture à 0).
+        if self._config_countdown <= 0 or not self.config:
             try:
                 self.config = await self.client.async_get_config()
+                self._config_countdown = CONFIG_EVERY
             except F1atbApiError as err:
                 _LOGGER.debug("Config non rafraîchie: %s", err)
-            self._config_countdown = CONFIG_EVERY
         self._config_countdown -= 1
 
         # Fusion mode (Actif) + ForceOuvre depuis la config, dans chaque action active

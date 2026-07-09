@@ -186,8 +186,10 @@ persistante reproduit exactement le bouton « Sauvegarder » de l'interface web 
 
 - **« icône non disponible » sur l'intégration** — normal pour une intégration custom (nécessiterait une PR
   sur `home-assistant/brands`). Sans effet sur le fonctionnement.
-- **Routeur hors ligne** — la carte ne plante pas : elle affiche « Hors ligne », et le capteur `Connecté`
-  passe à *off*. Le retour en ligne est automatique.
+- **Routeur hors tension** — c'est un **état normal**, pas une erreur (typique si vous pilotez son
+  alimentation). L'intégration **reste chargée** (aucun bandeau « Attention requise / Échec de la
+  configuration ») : le capteur `Connecté` passe à *off*, les autres entités deviennent *indisponibles*,
+  et la carte affiche « Hors ligne ». **Tout se remplit automatiquement** à la remise sous tension.
 - **Une action n'a pas d'entités** — c'est voulu : seules les actions **actives** en ont. Activez la forme
   d'onde (≠ Inactif) sur le routeur ou depuis HA.
 

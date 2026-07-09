@@ -53,15 +53,22 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     scan = entry.options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
     coordinator = F1atbCoordinator(hass, entry, client, scan)
 
-    # Première lecture (identité de l'appareil + validation de la connexion)
+    # Le routeur peut être HORS TENSION (alimentation pilotée séparément) : ce n'est PAS une
+    # erreur de configuration. On ne lève donc jamais ConfigEntryNotReady (qui afficherait
+    # « Attention requise / Échec de la configuration »). L'intégration se charge, le capteur
+    # « Connecté » passe à off, les autres entités deviennent indisponibles, et tout se
+    # remplit automatiquement dès que le routeur répond.
     try:
-        config = await client.async_get_config()
+        coordinator.config = await client.async_get_config()
     except F1atbApiError as err:
-        from homeassistant.exceptions import ConfigEntryNotReady
+        _LOGGER.warning(
+            "Routeur injoignable au démarrage (%s) — intégration chargée en mode hors ligne.",
+            err,
+        )
+        coordinator.config = {}
 
-        raise ConfigEntryNotReady(str(err)) from err
-    coordinator.config = config
-    await coordinator.async_config_entry_first_refresh()
+    # async_refresh() (et NON async_config_entry_first_refresh) : ne lève pas ConfigEntryNotReady.
+    await coordinator.async_refresh()
 
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)

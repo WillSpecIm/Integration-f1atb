@@ -18,16 +18,25 @@ class F1atbBaseEntity(CoordinatorEntity[F1atbCoordinator]):
         super().__init__(coordinator)
         cfg = coordinator.config or {}
         uid = coordinator.entry.unique_id or coordinator.entry.entry_id
-        name = cfg.get("Routeur") or cfg.get("hostname") or "Routeur F1ATB"
-        version = cfg.get("VersionStocke")
-        self._attr_device_info = DeviceInfo(
+        # Routeur hors tension : la config est vide → on retombe sur le titre de l'entrée
+        # (le nom du routeur, posé par le config_flow) pour ne pas renommer l'appareil.
+        name = (
+            cfg.get("Routeur")
+            or cfg.get("hostname")
+            or coordinator.entry.title
+            or "Routeur F1ATB"
+        )
+        info = DeviceInfo(
             identifiers={(DOMAIN, str(uid))},
             name=name,
             manufacturer="F1ATB",
             model="Solar Router (RMS ESP32)",
-            sw_version=str(version) if version else None,
             configuration_url=coordinator.client.base_url,
         )
+        version = cfg.get("VersionStocke")
+        if version:  # ne pas effacer la version connue quand le routeur est éteint
+            info["sw_version"] = str(version)
+        self._attr_device_info = info
 
 
 class F1atbActionEntity(F1atbBaseEntity):
