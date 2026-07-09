@@ -28,7 +28,6 @@ async def _register_card(hass: HomeAssistant) -> None:
     """Sert la carte Lovelace et la charge automatiquement (dispo dans l'éditeur graphique)."""
     if hass.data.get(f"{DOMAIN}_card"):
         return
-    hass.data[f"{DOMAIN}_card"] = True
     card = Path(__file__).parent / "f1atb-card.js"
     try:
         from homeassistant.components.http import StaticPathConfig
@@ -39,6 +38,8 @@ async def _register_card(hass: HomeAssistant) -> None:
         from homeassistant.components.frontend import add_extra_js_url
 
         add_extra_js_url(hass, CARD_URL)
+        # Marqué SEULEMENT après succès : un échec pourra être retenté au prochain setup.
+        hass.data[f"{DOMAIN}_card"] = True
     except Exception as err:  # noqa: BLE001 - non bloquant : l'intégration marche sans la carte
         _LOGGER.warning("Chargement auto de la carte impossible (%s). "
                         "Ajoutez %s en ressource manuellement si besoin.", err, CARD_URL)

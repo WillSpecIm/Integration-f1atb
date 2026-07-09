@@ -130,6 +130,19 @@ class F1atbCard extends HTMLElement {
 
   _renderInner() {
     const eids = this._entities();
+
+    // Routeur hors tension / intégration pas encore chargée : AUCUNE entité.
+    // On affiche une carte propre au lieu de laisser quoi que ce soit planter.
+    if (!eids.length) {
+      this._root.innerHTML = `<style>${STYLE}</style>
+        <ha-card><div class="wrap">
+          <div class="head">${LOGO}<div><div class="title">Routeur F1ATB</div>
+            <div class="sub"><span class="dot off"></span>Indisponible</div></div></div>
+          <div class="empty">Le routeur ne répond pas (hors tension ?).<br>La carte se remplit dès qu'il est joignable.</div>
+        </div></ha-card>`;
+      return;
+    }
+
     const globals = {};
     const actions = {}; // index -> {kind: eid}
     let routerName = "Routeur F1ATB";
@@ -145,13 +158,14 @@ class F1atbCard extends HTMLElement {
         globals[a.f1atb_kind] = eid;
       }
     }
-    // nom du routeur depuis le device d'une entité
+    // nom du routeur depuis le device d'une entité (hass.entities/devices peuvent être absents)
     const anyEid = eids[0];
-    if (anyEid && this._hass.entities[anyEid] && this._hass.entities[anyEid].device_id && this._hass.devices) {
-      const dev = this._hass.devices[this._hass.entities[anyEid].device_id];
-      if (dev && dev.name_by_user) routerName = dev.name_by_user;
-      else if (dev && dev.name) routerName = dev.name;
-    }
+    const ents = this._hass.entities || {};
+    const devs = this._hass.devices || {};
+    const ent = anyEid ? ents[anyEid] : null;
+    const dev = ent && ent.device_id ? devs[ent.device_id] : null;
+    if (dev && dev.name_by_user) routerName = dev.name_by_user;
+    else if (dev && dev.name) routerName = dev.name;
 
     // État connecté (capteur binaire "Connecté", f1atb_kind='connected')
     const connEid = globals.connected;
@@ -174,7 +188,8 @@ class F1atbCard extends HTMLElement {
       tempHtml = `<div class="temps">` + tempEids.map((e) => {
         const s = this._st(e);
         const v = Number(s.state);
-        const nm = s.attributes.nom || ("Canal " + (s.attributes.temp_channel ?? "?"));
+        const ch = s.attributes.temp_channel;
+        const nm = s.attributes.nom || ("Canal " + (ch === undefined || ch === null ? "?" : ch));
         const disp = (s.state === "unavailable" || s.state === "unknown" || isNaN(v)) ? "—" : FMT(v, 1) + "°C";
         return `<div class="tchip">🌡<span class="tn">${ESC(nm)}</span><span class="tv">${disp}</span></div>`;
       }).join("") + `</div>`;
@@ -342,12 +357,20 @@ class F1atbCard extends HTMLElement {
   static getStubConfig() { return {}; }
 }
 
-customElements.define("f1atb-card", F1atbCard);
-window.customCards = window.customCards || [];
-window.customCards.push({
-  type: "f1atb-card",
-  name: "F1ATB Solar Router",
-  description: "Carte interactive pour piloter le routeur solaire F1ATB (forme d'onde, ouverture max, forçage, marche forcée à une puissance donnée).",
-  preview: true,
-});
-console.info("%c F1ATB-CARD %c chargée ", "background:#2f7ff0;color:#fff;border-radius:4px 0 0 4px;padding:2px 6px", "background:#17181c;color:#fff;border-radius:0 4px 4px 0;padding:2px 6px");
+// Enregistrement IDEMPOTENT. Le fichier peut être chargé DEUX fois : automatiquement par
+// l'intégration (add_extra_js_url) ET via une ressource Lovelace ajoutée à la main.
+// Sans ce garde, customElements.define() lève « already defined », le module plante et le
+// frontend (surtout l'appli mobile) affiche « impossible de charger l'application ».
+if (!customElements.get("f1atb-card")) {
+  customElements.define("f1atb-card", F1atbCard);
+  window.customCards = window.customCards || [];
+  if (!window.customCards.some((c) => c && c.type === "f1atb-card")) {
+    window.customCards.push({
+      type: "f1atb-card",
+      name: "F1ATB Solar Router",
+      description: "Carte interactive pour piloter le routeur solaire F1ATB (forme d'onde, ouverture max, forçage, marche forcée à une puissance donnée).",
+      preview: true,
+    });
+  }
+  console.info("%c F1ATB-CARD %c chargée ", "background:#2f7ff0;color:#fff;border-radius:4px 0 0 4px;padding:2px 6px", "background:#17181c;color:#fff;border-radius:0 4px 4px 0;padding:2px 6px");
+}

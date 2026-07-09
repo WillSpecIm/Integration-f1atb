@@ -27,6 +27,11 @@ from .entity import F1atbActionEntity, F1atbBaseEntity
 from .helpers import async_setup_action_platform, temp_channel_indices
 
 
+# Au-delà, la référence de minuit est forcément corrompue : un routeur solaire domestique
+# ne peut pas router 150 kWh en une journée (≈ 6 kW en continu 24 h).
+MAX_PLAUSIBLE_DAILY_WH = 150_000
+
+
 @dataclass(frozen=True, kw_only=True)
 class F1atbSensorDesc(SensorEntityDescription):
     value: Callable[[dict], float | None]
@@ -170,12 +175,28 @@ class F1atbRoutedTodaySensor(F1atbBaseEntity, SensorEntity, RestoreEntity):
         super()._handle_coordinator_update()
 
     def _recompute(self) -> None:
-        total = (self.coordinator.data or {}).get("routed_energy_total")  # Wh cumulés
-        if total is None:
+        raw = (self.coordinator.data or {}).get("routed_energy_total")  # Wh cumulés
+        if raw is None:
             return
+        try:
+            total = float(raw)
+        except (TypeError, ValueError):
+            return
+        if total <= 0:
+            # Lecture nulle/invalide (routeur qui redémarre, trame partielle) : ne JAMAIS caler la
+            # référence dessus, sinon le journalier afficherait tout le cumul à vie.
+            return
+
         today = dt_util.now().date().isoformat()
-        # Nouveau jour, 1re fois, ou compteur reculé (reset Shelly) → on re-cale la référence.
-        if self._day != today or self._baseline is None or total < self._baseline:
+        # Référence inutilisable : absente, nulle/négative, postérieure au cumul (reset compteur),
+        # ou qui donnerait un journalier physiquement impossible.
+        bad_baseline = (
+            self._baseline is None
+            or self._baseline <= 0
+            or total < self._baseline
+            or (total - self._baseline) > MAX_PLAUSIBLE_DAILY_WH
+        )
+        if self._day != today or bad_baseline:
             self._day = today
             self._baseline = total
         self._value = round(max(0.0, total - self._baseline) / 1000.0, 3)
