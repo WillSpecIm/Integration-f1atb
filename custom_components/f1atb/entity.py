@@ -67,6 +67,12 @@ class F1atbActionEntity(F1atbBaseEntity):
         return (a.get("name") if a else None) or f"Action {self._index}"
 
     @property
+    def _config_ok(self) -> bool:
+        """La config (/ParaFixe) de cette action est-elle connue ? (sinon mode/ForceOuvre = 0)."""
+        a = self._action
+        return bool(a and a.get("config_ok"))
+
+    @property
     def available(self) -> bool:
         return super().available and self._action is not None
 

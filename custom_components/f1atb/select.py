@@ -53,6 +53,11 @@ class FormeOndeSelect(F1atbActionEntity, SelectEntity):
         return f"{self._action_name} forme d'onde"
 
     @property
+    def available(self) -> bool:
+        # Le mode vient de /ParaFixe : pas de config = pas d'affichage « Inactif » trompeur.
+        return super().available and self._config_ok
+
+    @property
     def _is_triac(self) -> bool:
         a = self._action
         return bool(a.get("is_triac")) if a else self._index == 0

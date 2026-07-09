@@ -62,6 +62,11 @@ class AutoOuvertureMaxNumber(F1atbActionEntity, NumberEntity):
         return f"{self._action_name} ouverture max (Auto)"
 
     @property
+    def available(self) -> bool:
+        # Vmax vient de /ParaFixe : indisponible tant que la config n'est pas lue.
+        return super().available and self._config_ok
+
+    @property
     def native_value(self) -> float | None:
         a = self._action
         return None if a is None else float(a.get("auto_ouvre_max", 100) or 0)
@@ -105,6 +110,11 @@ class OuvertureMaxNumber(F1atbActionEntity, NumberEntity):
     @property
     def name(self) -> str:
         return f"{self._action_name} ouverture (marche forcée)"
+
+    @property
+    def available(self) -> bool:
+        # ForceOuvre vient de /ParaFixe : indisponible tant que la config n'est pas lue.
+        return super().available and self._config_ok
 
     @property
     def native_value(self) -> float | None:

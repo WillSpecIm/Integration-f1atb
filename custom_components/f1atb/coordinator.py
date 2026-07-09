@@ -159,18 +159,23 @@ class F1atbCoordinator(DataUpdateCoordinator[dict]):
             # Ouverture max en routage AUTO (triac) = Vmax de la 1re période.
             periodes = cfg.get("Periodes") or cfg.get("Périodes") or []
             a["auto_ouvre_max"] = int(periodes[0].get("Vmax", 100) or 0) if periodes else 100
+            # Sans config (routeur qui vient de booter, /ParaFixe pas encore lu), mode/ForceOuvre
+            # valent 0 : les entités qui en dépendent doivent rester INDISPONIBLES plutôt que
+            # d'afficher « Inactif / ouverture 0 » avec assurance.
+            a["config_ok"] = bool(cfg)
 
         # Canaux de température (0..3) : configurés dans /ParaFixe (Source_Temp != "tempNo"),
         # nom = nomTemperature{c}, valeur = /ajax_data (None si sonde absente / -127).
         temps = data.get("temperatures") or []
         tchan: dict[int, dict] = {}
-        for c in range(4):
-            src = self.config.get(f"Source_Temp{c}")
-            val = temps[c] if c < len(temps) else None
-            configured = src not in (None, "", "tempNo")
-            # inclure si configuré, ou — à défaut d'info de config — si une valeur valide est lue
-            if configured or (src is None and val is not None):
-                name = (self.config.get(f"nomTemperature{c}") or "").strip() or f"Température {c}"
-                tchan[c] = {"name": name, "source": src or "?", "value": val}
+        if self.config:  # sans config on ignore quels canaux existent → ne rien créer (pas de clignotement)
+            for c in range(4):
+                src = self.config.get(f"Source_Temp{c}")
+                val = temps[c] if c < len(temps) else None
+                configured = src not in (None, "", "tempNo")
+                # inclure si configuré, ou — config lue mais sans ces clés — si une valeur valide est là
+                if configured or (src is None and val is not None):
+                    name = (self.config.get(f"nomTemperature{c}") or "").strip() or f"Température {c}"
+                    tchan[c] = {"name": name, "source": src or "?", "value": val}
         data["temp_channels"] = tchan
         return data
