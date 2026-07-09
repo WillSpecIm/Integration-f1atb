@@ -7,6 +7,8 @@
  *   URL: /local/f1atb-card.js   Type: JavaScript Module
  * Puis dans une vue : ajouter une carte « Manuel » avec  type: custom:f1atb-card
  */
+const F1ATB_CARD_VERSION = "0.4.2";
+
 const LOGO = `
 <svg viewBox="44 60 186 128" class="logo">
  <rect x="118" y="96" width="72" height="86" rx="14" fill="#54565c" stroke="#2f3036" stroke-width="3.5"/>
@@ -363,7 +365,15 @@ class F1atbCard extends HTMLElement {
 // l'intégration (add_extra_js_url) ET via une ressource Lovelace ajoutée à la main.
 // Sans ce garde, customElements.define() lève « already defined », le module plante et le
 // frontend (surtout l'appli mobile) affiche « impossible de charger l'application ».
-if (!customElements.get("f1atb-card")) {
+if (customElements.get("f1atb-card")) {
+  // Déjà défini : une AUTRE copie du fichier a été chargée avant (typiquement une vieille
+  // ressource Lovelace manuelle `/local/f1atb-card.js` figée, que HACS ne met jamais à jour).
+  console.warn(
+    `[f1atb-card] v${F1ATB_CARD_VERSION} ignorée : « f1atb-card » est déjà défini par un autre fichier. ` +
+    `Supprimez la ressource Lovelace manuelle (Paramètres → Tableaux de bord → Ressources) ` +
+    `et le fichier /config/www/f1atb-card.js : l'intégration charge la carte automatiquement.`
+  );
+} else {
   customElements.define("f1atb-card", F1atbCard);
   window.customCards = window.customCards || [];
   if (!window.customCards.some((c) => c && c.type === "f1atb-card")) {
@@ -374,5 +384,5 @@ if (!customElements.get("f1atb-card")) {
       preview: true,
     });
   }
-  console.info("%c F1ATB-CARD %c chargée ", "background:#2f7ff0;color:#fff;border-radius:4px 0 0 4px;padding:2px 6px", "background:#17181c;color:#fff;border-radius:0 4px 4px 0;padding:2px 6px");
+  console.info(`%c F1ATB-CARD %c v${F1ATB_CARD_VERSION} `, "background:#2f7ff0;color:#fff;border-radius:4px 0 0 4px;padding:2px 6px", "background:#17181c;color:#fff;border-radius:0 4px 4px 0;padding:2px 6px");
 }
