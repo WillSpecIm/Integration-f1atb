@@ -19,10 +19,16 @@ from homeassistant.const import (
 )
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.restore_state import ExtraStoredData, RestoreEntity
+from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN
 from .entity import F1atbActionEntity, F1atbBaseEntity
 from .helpers import async_setup_action_platform, temp_channel_indices
+
+# Au-delà de cet écart entre deux mesures (redémarrage HA, routeur coupé), on n'intègre
+# pas l'intervalle : on ignore la période au lieu d'inventer de l'énergie.
+INTEGRATION_MAX_DT = 600  # secondes
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -59,21 +65,6 @@ GLOBAL_SENSORS: tuple[F1atbSensorDesc, ...] = (
         value=lambda d: d.get("routed_power"),
     ),
     F1atbSensorDesc(
-        key="routed_energy_today",
-        name="Énergie routée aujourd'hui",
-        icon="mdi:lightning-bolt",
-        native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
-        device_class=SensorDeviceClass.ENERGY,
-        state_class=SensorStateClass.TOTAL_INCREASING,
-        # Compteur JOURNALIER du firmware (EAJS_T) : c'est la valeur de l'interface web F1ATB.
-        # Le firmware connaît le vrai minuit (référence persistée en flash) et se recale à la
-        # mise sous tension → fiable même si l'alimentation est coupée/rallumée.
-        value=lambda d: (
-            None if d.get("routed_energy_today") is None
-            else round(d["routed_energy_today"] / 1000, 3)
-        ),
-    ),
-    F1atbSensorDesc(
         key="routed_energy_total",
         name="Énergie routée totale",
         icon="mdi:lightning-bolt-outline",
@@ -94,8 +85,10 @@ async def async_setup_entry(
 ) -> None:
     coordinator = hass.data[DOMAIN][entry.entry_id]
 
-    # Capteurs globaux (toujours présents)
-    async_add_entities(F1atbGlobalSensor(coordinator, desc) for desc in GLOBAL_SENSORS)
+    # Capteurs globaux + "routé aujourd'hui" calculé par intégration de la puissance
+    entities: list = [F1atbGlobalSensor(coordinator, desc) for desc in GLOBAL_SENSORS]
+    entities.append(F1atbRoutedTodaySensor(coordinator))
+    async_add_entities(entities)
 
     # Capteur ouverture % par action active (dynamique)
     def factory(index: int) -> list:
@@ -127,6 +120,102 @@ class F1atbGlobalSensor(F1atbBaseEntity, SensorEntity):
     @property
     def extra_state_attributes(self) -> dict:
         return {"f1atb_kind": self.entity_description.key}
+
+
+@dataclass
+class _RoutedTodayExtra(ExtraStoredData):
+    """État persisté du cumul journalier (survit à un redémarrage de HA)."""
+
+    accum_wh: float | None
+    day: str | None
+
+    def as_dict(self) -> dict:
+        return {"accum_wh": self.accum_wh, "day": self.day}
+
+
+class F1atbRoutedTodaySensor(F1atbBaseEntity, SensorEntity, RestoreEntity):
+    """Énergie routée aujourd'hui, calculée par INTÉGRATION de la puissance routée.
+
+    Le compteur d'énergie « du jour » du firmware est sur-compté (surtout quand l'alimentation
+    du routeur est coupée : sauts d'horloge au reboot → intégration faussée). On intègre donc
+    la puissance routée (physiquement bornée, elle, correcte) côté HA, en trapèzes, et on remet
+    à zéro à minuit local. Résultat fiable et cohérent, indépendant des reboots du routeur.
+    """
+
+    _attr_name = "Énergie routée aujourd'hui"
+    _attr_icon = "mdi:lightning-bolt"
+    _attr_device_class = SensorDeviceClass.ENERGY
+    _attr_state_class = SensorStateClass.TOTAL_INCREASING
+    _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
+    _attr_suggested_display_precision = 2
+
+    def __init__(self, coordinator) -> None:
+        super().__init__(coordinator)
+        self._attr_unique_id = f"{coordinator.entry.unique_id}_routed_energy_today"
+        self._accum: float = 0.0          # Wh accumulés aujourd'hui
+        self._day: str | None = None      # date locale du cumul courant
+        self._last_ts = None              # datetime UTC de la dernière mesure intégrée
+        self._last_power: float = 0.0     # dernière puissance routée (W)
+        self._value: float = 0.0          # kWh du jour
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        extra = await self.async_get_last_extra_data()
+        if extra is not None:
+            d = extra.as_dict()
+            self._accum = float(d.get("accum_wh") or 0.0)
+            self._day = d.get("day")
+        # Si HA reprend un autre jour, on repartira de zéro au 1er échantillon.
+        self._value = round(self._accum / 1000.0, 3)
+
+    @property
+    def extra_restore_state_data(self) -> _RoutedTodayExtra:
+        return _RoutedTodayExtra(self._accum, self._day)
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        self._integrate()
+        super()._handle_coordinator_update()
+
+    def _integrate(self) -> None:
+        # Pas d'intégration si le routeur est injoignable (données périmées).
+        if not self.coordinator.last_update_success:
+            return
+        power = (self.coordinator.data or {}).get("routed_power")
+        if power is None:
+            return
+        try:
+            power = max(0.0, float(power))
+        except (TypeError, ValueError):
+            return
+
+        now = dt_util.utcnow()
+        today = dt_util.now().date().isoformat()
+
+        if self._day != today:  # nouveau jour (ou 1re fois) → remise à zéro
+            self._day = today
+            self._accum = 0.0
+            self._last_ts = now
+            self._last_power = power
+            self._value = 0.0
+            return
+
+        if self._last_ts is not None:
+            dt = (now - self._last_ts).total_seconds()
+            if 0 < dt <= INTEGRATION_MAX_DT:
+                # Trapèze : énergie (Wh) = puissance moyenne × durée / 3600
+                self._accum += (self._last_power + power) / 2.0 * dt / 3600.0
+        self._last_ts = now
+        self._last_power = power
+        self._value = round(self._accum / 1000.0, 3)
+
+    @property
+    def native_value(self) -> float | None:
+        return self._value
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        return {"f1atb_kind": "routed_energy_today", "methode": "intégration de la puissance (HA)"}
 
 
 class TemperatureSensor(F1atbBaseEntity, SensorEntity):

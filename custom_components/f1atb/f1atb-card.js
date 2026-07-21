@@ -7,7 +7,7 @@
  *   URL: /local/f1atb-card.js   Type: JavaScript Module
  * Puis dans une vue : ajouter une carte « Manuel » avec  type: custom:f1atb-card
  */
-const F1ATB_CARD_VERSION = "0.4.3";
+const F1ATB_CARD_VERSION = "0.4.4";
 
 const LOGO = `
 <svg viewBox="44 60 186 128" class="logo">

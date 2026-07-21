@@ -131,11 +131,12 @@ déroulant, les `number` en curseur) — aucune carte custom nécessaire.
 
 ## 🔋 Suivi d'énergie
 
-- **Énergie routée aujourd'hui** = le **compteur journalier du firmware** (celui affiché sur l'interface web
-  F1ATB). Le routeur connaît le vrai minuit (référence persistée en flash) et se recale à la mise sous
-  tension → fiable même si vous **coupez/rallumez l'alimentation**. Se remet à zéro à minuit.
-- **Énergie routée totale** = compteur **à vie** (ne se remet jamais à zéro). À utiliser pour l'onglet
-  **Énergie** de Home Assistant, qui calcule alors lui-même les totaux jour/mois.
+- **Énergie routée aujourd'hui** = calculée **par Home Assistant en intégrant la puissance routée** dans le
+  temps (méthode des trapèzes), remise à zéro à minuit. On n'utilise **pas** le compteur d'énergie « du jour »
+  du firmware, qui est sur-compté lorsque l'alimentation du routeur est coupée (sauts d'horloge au reboot
+  faussant son intégration). La puissance, elle, reste juste → le calcul HA est **fiable et cohérent**,
+  insensible aux coupures/redémarrages.
+- **Énergie routée totale** = compteur **à vie** remonté du routeur (utile pour l'onglet Énergie de HA).
 
 ---
 
