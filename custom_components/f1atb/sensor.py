@@ -19,17 +19,10 @@ from homeassistant.const import (
 )
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.restore_state import ExtraStoredData, RestoreEntity
-from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN
 from .entity import F1atbActionEntity, F1atbBaseEntity
 from .helpers import async_setup_action_platform, temp_channel_indices
-
-
-# Au-delà, la référence de minuit est forcément corrompue : un routeur solaire domestique
-# ne peut pas router 150 kWh en une journée (≈ 6 kW en continu 24 h).
-MAX_PLAUSIBLE_DAILY_WH = 150_000
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -66,14 +59,28 @@ GLOBAL_SENSORS: tuple[F1atbSensorDesc, ...] = (
         value=lambda d: d.get("routed_power"),
     ),
     F1atbSensorDesc(
+        key="routed_energy_today",
+        name="Énergie routée aujourd'hui",
+        icon="mdi:lightning-bolt",
+        native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+        device_class=SensorDeviceClass.ENERGY,
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        # Compteur JOURNALIER du firmware (EAJS_T) : c'est la valeur de l'interface web F1ATB.
+        # Le firmware connaît le vrai minuit (référence persistée en flash) et se recale à la
+        # mise sous tension → fiable même si l'alimentation est coupée/rallumée.
+        value=lambda d: (
+            None if d.get("routed_energy_today") is None
+            else round(d["routed_energy_today"] / 1000, 3)
+        ),
+    ),
+    F1atbSensorDesc(
         key="routed_energy_total",
         name="Énergie routée totale",
         icon="mdi:lightning-bolt-outline",
         native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
         device_class=SensorDeviceClass.ENERGY,
         state_class=SensorStateClass.TOTAL_INCREASING,
-        # Compteur à vie (Shelly) : ne se remet JAMAIS à zéro → parfait pour le tableau
-        # de bord Énergie (HA calcule jour/mois tout seul, insensible aux reboots).
+        # Compteur à vie : ne se remet JAMAIS à zéro → parfait pour le tableau de bord Énergie.
         value=lambda d: (
             None if d.get("routed_energy_total") is None
             else round(d["routed_energy_total"] / 1000, 3)
@@ -87,10 +94,8 @@ async def async_setup_entry(
 ) -> None:
     coordinator = hass.data[DOMAIN][entry.entry_id]
 
-    # Capteurs globaux (toujours présents) + "routé aujourd'hui" robuste (anti-reset reboot)
-    entities: list = [F1atbGlobalSensor(coordinator, desc) for desc in GLOBAL_SENSORS]
-    entities.append(F1atbRoutedTodaySensor(coordinator))
-    async_add_entities(entities)
+    # Capteurs globaux (toujours présents)
+    async_add_entities(F1atbGlobalSensor(coordinator, desc) for desc in GLOBAL_SENSORS)
 
     # Capteur ouverture % par action active (dynamique)
     def factory(index: int) -> list:
@@ -122,92 +127,6 @@ class F1atbGlobalSensor(F1atbBaseEntity, SensorEntity):
     @property
     def extra_state_attributes(self) -> dict:
         return {"f1atb_kind": self.entity_description.key}
-
-
-@dataclass
-class _RoutedTodayExtra(ExtraStoredData):
-    """Référence persistée pour recalculer le journalier après un redémarrage de HA."""
-
-    baseline: float | None
-    day: str | None
-
-    def as_dict(self) -> dict:
-        return {"baseline": self.baseline, "day": self.day}
-
-
-class F1atbRoutedTodaySensor(F1atbBaseEntity, SensorEntity, RestoreEntity):
-    """Énergie routée aujourd'hui, calculée depuis le compteur CUMULÉ (à vie).
-
-    valeur = cumulé − cumulé_à_minuit. Insensible aux redémarrages du routeur (le cumulé
-    ne se remet pas à zéro), et la référence de minuit est persistée côté HA (survit aussi
-    à un redémarrage de Home Assistant). Repart de zéro à minuit (heure locale HA).
-    """
-
-    _attr_name = "Énergie routée aujourd'hui"
-    _attr_icon = "mdi:lightning-bolt"
-    _attr_device_class = SensorDeviceClass.ENERGY
-    _attr_state_class = SensorStateClass.TOTAL_INCREASING
-    _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
-
-    def __init__(self, coordinator) -> None:
-        super().__init__(coordinator)
-        self._attr_unique_id = f"{coordinator.entry.unique_id}_routed_energy_today"
-        self._baseline: float | None = None   # cumulé (Wh) à minuit
-        self._day: str | None = None          # date locale de la référence
-        self._value: float | None = None      # kWh du jour
-
-    async def async_added_to_hass(self) -> None:
-        await super().async_added_to_hass()
-        extra = await self.async_get_last_extra_data()
-        if extra is not None:
-            d = extra.as_dict()
-            self._baseline = d.get("baseline")
-            self._day = d.get("day")
-        self._recompute()
-
-    @property
-    def extra_restore_state_data(self) -> _RoutedTodayExtra:
-        return _RoutedTodayExtra(self._baseline, self._day)
-
-    @callback
-    def _handle_coordinator_update(self) -> None:
-        self._recompute()
-        super()._handle_coordinator_update()
-
-    def _recompute(self) -> None:
-        raw = (self.coordinator.data or {}).get("routed_energy_total")  # Wh cumulés
-        if raw is None:
-            return
-        try:
-            total = float(raw)
-        except (TypeError, ValueError):
-            return
-        if total <= 0:
-            # Lecture nulle/invalide (routeur qui redémarre, trame partielle) : ne JAMAIS caler la
-            # référence dessus, sinon le journalier afficherait tout le cumul à vie.
-            return
-
-        today = dt_util.now().date().isoformat()
-        # Référence inutilisable : absente, nulle/négative, postérieure au cumul (reset compteur),
-        # ou qui donnerait un journalier physiquement impossible.
-        bad_baseline = (
-            self._baseline is None
-            or self._baseline <= 0
-            or total < self._baseline
-            or (total - self._baseline) > MAX_PLAUSIBLE_DAILY_WH
-        )
-        if self._day != today or bad_baseline:
-            self._day = today
-            self._baseline = total
-        self._value = round(max(0.0, total - self._baseline) / 1000.0, 3)
-
-    @property
-    def native_value(self) -> float | None:
-        return self._value
-
-    @property
-    def extra_state_attributes(self) -> dict:
-        return {"f1atb_kind": "routed_energy_today"}
 
 
 class TemperatureSensor(F1atbBaseEntity, SensorEntity):

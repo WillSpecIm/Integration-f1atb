@@ -129,15 +129,13 @@ déroulant, les `number` en curseur) — aucune carte custom nécessaire.
 
 ---
 
-## 🔋 Suivi d'énergie fiable
+## 🔋 Suivi d'énergie
 
-Le compteur journalier interne du firmware peut se remettre à zéro lors d'un **redémarrage du routeur**.
-Cette intégration contourne le problème :
-
-- **Énergie routée aujourd'hui** = *compteur cumulé actuel − compteur cumulé à minuit*. La référence de
-  minuit est **mémorisée côté Home Assistant** (elle survit à un redémarrage du routeur **et** de HA).
-- Pour l'onglet **Énergie** de Home Assistant, utilisez plutôt **Énergie routée totale** (compteur à vie) :
-  HA calcule lui-même les totaux jour/mois, de façon totalement robuste.
+- **Énergie routée aujourd'hui** = le **compteur journalier du firmware** (celui affiché sur l'interface web
+  F1ATB). Le routeur connaît le vrai minuit (référence persistée en flash) et se recale à la mise sous
+  tension → fiable même si vous **coupez/rallumez l'alimentation**. Se remet à zéro à minuit.
+- **Énergie routée totale** = compteur **à vie** (ne se remet jamais à zéro). À utiliser pour l'onglet
+  **Énergie** de Home Assistant, qui calcule alors lui-même les totaux jour/mois.
 
 ---
 
