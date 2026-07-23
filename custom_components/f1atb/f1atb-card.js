@@ -7,7 +7,7 @@
  *   URL: /local/f1atb-card.js   Type: JavaScript Module
  * Puis dans une vue : ajouter une carte « Manuel » avec  type: custom:f1atb-card
  */
-const F1ATB_CARD_VERSION = "0.4.4";
+const F1ATB_CARD_VERSION = "0.4.5";
 
 const LOGO = `
 <svg viewBox="44 60 186 128" class="logo">
@@ -284,7 +284,6 @@ class F1atbCard extends HTMLElement {
           ${kpi("grid_import_power", "Soutirée", "--imp", "W", false)}
           ${kpi("grid_export_power", "Injectée", "--exp", "W", false)}
           ${kpi("routed_power", "Routée", "--triac", "W", false)}
-          ${kpi("routed_energy_today", "Routé auj.", "--relais", "kWh", true)}
         </div>
         ${tempHtml}
         ${actionsHtml}
